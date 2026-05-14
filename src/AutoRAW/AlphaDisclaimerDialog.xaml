@@ -1,0 +1,39 @@
+<Window x:Class="AutoRAW.AlphaDisclaimerDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Цветокоррекция — альфа-версия"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        SizeToContent="Height"
+        Width="440"
+        Background="#FAFAFA">
+  <Border Padding="20" BorderBrush="#D0D0D0" BorderThickness="0,0,0,0">
+    <StackPanel>
+      <TextBlock Text="Режим альфа"
+                 FontSize="16"
+                 FontWeight="SemiBold"
+                 Foreground="#1A1A1A"
+                 Margin="0,0,0,12" />
+      <TextBlock TextWrapping="Wrap"
+                 FontSize="13"
+                 LineHeight="20"
+                 Foreground="#333"
+                 Margin="0,0,0,16"
+                 Text="Цветовой профиль и коррекция в AutoRAW пока работают в режиме альфа. Результат может вас не устроить.&#x0a;&#x0a;Нажимая «Продолжить», вы подтверждаете, что это понимаете и соглашаетесь продолжить на свой страх и риск; претензии к результату в рамках альфа-версии не предъявляются." />
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button x:Name="ContinueBtn"
+                MinWidth="120"
+                Margin="0,0,8,0"
+                Padding="12,8"
+                IsDefault="True"
+                Content="Продолжить"
+                Click="Continue_Click" />
+        <Button MinWidth="100"
+                Padding="12,8"
+                IsCancel="True"
+                Content="Отмена" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

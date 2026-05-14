@@ -1,0 +1,59 @@
+<Window x:Class="AutoRAW.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AutoRAW"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        Width="420"
+        Height="232"
+        Background="#F5F6F8"
+        BorderBrush="#C8CCD0"
+        BorderThickness="1">
+  <Grid Margin="24,20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0"
+               Text="AutoRAW"
+               FontSize="26"
+               FontWeight="SemiBold"
+               Foreground="#1A1A1A" />
+
+    <ProgressBar x:Name="BootProgress"
+                 Grid.Row="1"
+                 Height="6"
+                 Margin="0,18,0,12"
+                 IsIndeterminate="True"
+                 Foreground="#0F6CBD"
+                 Background="#E2E4E8"
+                 BorderThickness="0" />
+
+    <Border Grid.Row="2"
+            Background="#ECEEF1"
+            BorderBrush="#D8DADC"
+            BorderThickness="1"
+            Padding="10,8"
+            CornerRadius="0">
+      <TextBlock x:Name="StatusBarText"
+                 FontSize="12"
+                 Foreground="#333"
+                 TextWrapping="Wrap"
+                 Text="Загрузка интерфейса…" />
+    </Border>
+
+    <TextBlock x:Name="VersionLine"
+               Grid.Row="3"
+               Margin="0,12,0,0"
+               HorizontalAlignment="Center"
+               FontSize="12"
+               Foreground="#666"
+               Text="Версия" />
+  </Grid>
+</Window>

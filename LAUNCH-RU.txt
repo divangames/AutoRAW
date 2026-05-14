@@ -1,0 +1,26 @@
+Как запустить AutoRAW (выберите ОДИН способ)
+============================================
+
+1) Cursor / VS Code (лучший вариант)
+   - Откройте папку AutoRAW как корень проекта.
+   - Нажмите F5 или «Run and Debug» → конфигурация «AutoRAW (WPF)».
+   - Сборка и запуск идут через встроенный отладчик (файлы .vscode).
+
+2) Одна команда в терминале (из корня AutoRAW)
+   dotnet run --project src\AutoRAW\AutoRAW.csproj -c Debug --no-launch-profile
+
+3) Один файл для сборки и запуска (меню)
+   Дважды щёлкните **dev.cmd** в корне:
+     1 — только сборка (Debug)
+     2 — только запуск
+     3 — сборка, затем запуск
+     4 — только сборка Release (для раздачи)
+     5 — установщик для конечных пользователей: один .exe (Inno Setup 6, русский интерфейс, при необходимости ставит .NET 8 Desktop Runtime). Нужен Inno Setup 6 на ПК разработчика; см. **build-installer.ps1** / **bat\Build-Installer-RU.cmd**
+
+4) Быстро без меню
+   **Run-AutoRAW.cmd** — только run. **Build-AutoRAW.cmd** — только build.
+
+Нужен .NET 8 SDK: https://get.dot.net/8
+Проверка: dotnet --list-sdks
+
+Если «файл занят» при сборке — закройте окно уже запущенного AutoRAW.exe.
