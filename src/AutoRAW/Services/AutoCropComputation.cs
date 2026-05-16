@@ -83,4 +83,20 @@ public static class AutoCropComputation
         clone.Resize(nw, nh);
         return clone;
     }
+
+    /// <summary>Приводит кадр к пиксельному размеру референса (например 1400×1050 для «Кроссовки»).</summary>
+    public static void ResizeToReferenceOutputSize(MagickImage image, ReferenceMetrics reference)
+    {
+        var w = (int)Math.Round(reference.RefW);
+        var h = (int)Math.Round(reference.RefH);
+        if (w < 1 || h < 1)
+            return;
+
+        if (image.Width == (uint)w && image.Height == (uint)h)
+            return;
+
+        image.FilterType = FilterType.Lanczos;
+        image.Resize(new MagickGeometry((uint)w, (uint)h) { IgnoreAspectRatio = true });
+        image.ResetPage();
+    }
 }

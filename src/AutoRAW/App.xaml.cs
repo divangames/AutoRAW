@@ -7,15 +7,41 @@ namespace AutoRAW;
 
 public partial class App : System.Windows.Application
 {
-    private const int MinimumSplashMs = 2000;
+    /// <summary>Минимум времени сплэша в полной непрозрачности после анимации появления (10 с = 10000 мс).</summary>
+    private const int MinimumSplashVisibleMs = 10000;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        ThemeService.Initialize(this);
+
+        // Тёмная шапка окна для всех окон, создаваемых в приложении.
+        EventManager.RegisterClassHandler(
+            typeof(Window),
+            Window.LoadedEvent,
+            new RoutedEventHandler(OnAnyWindowLoaded));
+
+        ThemeService.ThemeChanged += OnGlobalThemeChanged;
+
         // Пока виден только сплэш, закрытие единственного окна не должно завершать процесс.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         _ = StartupSequenceAsync();
     }
+
+    private static void OnAnyWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is Window w)
+            Win11WindowChrome.SetTitleBarDark(w, ThemeService.CurrentIsDark);
+    }
+
+    private void OnGlobalThemeChanged(bool isDark)
+    {
+        foreach (Window w in Windows)
+            Win11WindowChrome.SetTitleBarDark(w, isDark);
+    }
+
+    private static Task RunOnSplashDispatcherAsync(SplashWindow splash, Func<Task> action) =>
+        splash.Dispatcher.InvokeAsync(action).Task.Unwrap();
 
     private async Task StartupSequenceAsync()
     {
@@ -23,10 +49,13 @@ public partial class App : System.Windows.Application
         splash.Show();
         splash.SetStatus("Запуск…");
         splash.UpdateLayout();
-        var sw = Stopwatch.StartNew();
 
         try
         {
+            await RunOnSplashDispatcherAsync(splash, splash.PlayFadeInAsync);
+
+            var sw = Stopwatch.StartNew();
+
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             await Task.Delay(30);
 
@@ -43,9 +72,11 @@ public partial class App : System.Windows.Application
 
             await Dispatcher.InvokeAsync(() => splash.SetStatus("Готово"), DispatcherPriority.Normal);
 
-            var remain = MinimumSplashMs - (int)sw.ElapsedMilliseconds;
+            var remain = MinimumSplashVisibleMs - (int)sw.ElapsedMilliseconds;
             if (remain > 0)
                 await Task.Delay(remain);
+
+            await RunOnSplashDispatcherAsync(splash, splash.PlayFadeOutAsync);
 
             await Dispatcher.InvokeAsync(() =>
             {
@@ -56,6 +87,16 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
+            try
+            {
+                if (splash.Opacity > 0.01)
+                    await RunOnSplashDispatcherAsync(splash, splash.PlayFadeOutAsync);
+            }
+            catch
+            {
+                /* ignore */
+            }
+
             splash.Close();
             System.Windows.MessageBox.Show(
                 ex.Message,

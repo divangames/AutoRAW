@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Версия: меняйте Version и InformationalVersion вместе (сплэш, заголовок окна, «О программе», свойства exe). -->
-    <Version>0.5.0.0</Version>
-    <InformationalVersion>0.5.0 Alpha</InformationalVersion>
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\'))</RepoRoot>
+    <!-- Version / InformationalVersion задаются в ResolveVersionFromChangelog из верхней записи CHANGELOG.md (## [x.y.z]). -->
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
@@ -20,6 +19,7 @@
   <ItemGroup>
     <PackageReference Include="Markdig" Version="0.41.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Emoji.Wpf" Version="0.3.4" />
     <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.7.0" />
     <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616" />
@@ -28,22 +28,46 @@
   <ItemGroup>
     <Content Include="Assets\Instruction.md" Link="Instruction.md" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="..\..\assets\images\favicon.ico" Link="Assets\favicon.ico" />
+    <Resource Include="..\..\assets\images\SplashScreen.png" Link="Assets\SplashScreen.png" />
+    <Resource Include="..\..\assets\images\ava_z.png" Link="Assets\ava_z.png" />
     <Content Include="..\..\CHANGELOG.md" Link="CHANGELOG.md" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\CHANGELOG.md')" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\'))</RepoRoot>
-  </PropertyGroup>
+  <Target Name="ResolveVersionFromChangelog" BeforeTargets="PrepareForBuild;GetAssemblyVersion;GenerateAssemblyInfo;CoreGenerateAssemblyInfo">
+    <PropertyGroup>
+      <_Changelog>$(RepoRoot)CHANGELOG.md</_Changelog>
+      <_ResolveScript>$(RepoRoot)bat\Resolve-VersionFromChangelog.ps1</_ResolveScript>
+      <_VersionOut>$(MSBuildProjectDirectory)\obj\changelog_assembly_version.txt</_VersionOut>
+    </PropertyGroup>
+    <MakeDir Directories="$(MSBuildProjectDirectory)\obj" Condition="!Exists('$(MSBuildProjectDirectory)\obj')" />
+    <PropertyGroup Condition="!Exists('$(_Changelog)')">
+      <Version>0.0.0</Version>
+      <InformationalVersion>0.0.0</InformationalVersion>
+    </PropertyGroup>
+    <Exec Condition="Exists('$(_Changelog)')"
+          Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(_ResolveScript)&quot; -ChangelogPath &quot;$(_Changelog)&quot; -OutVersionFile &quot;$(_VersionOut)&quot;"
+          LogStandardErrorAsError="true"
+          WorkingDirectory="$(RepoRoot)" />
+    <ReadLinesFromFile File="$(_VersionOut)" Condition="Exists('$(_Changelog)') And Exists('$(_VersionOut)')">
+      <Output TaskParameter="Lines" ItemName="_ChangelogVersionLines" />
+    </ReadLinesFromFile>
+    <PropertyGroup Condition="Exists('$(_Changelog)') And '@(_ChangelogVersionLines)' != ''">
+      <Version>@(_ChangelogVersionLines)</Version>
+      <InformationalVersion>@(_ChangelogVersionLines)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
 
   <Target Name="CopyRepoReferenceZona" AfterTargets="Build">
     <ItemGroup>
       <_Ref     Include="$(RepoRoot)reference\**\*.*" Condition="Exists('$(RepoRoot)reference')" />
       <_Zona    Include="$(RepoRoot)zona\**\*.*"      Condition="Exists('$(RepoRoot)zona')" />
       <_Setting Include="$(RepoRoot)setting\**\*.*"   Condition="Exists('$(RepoRoot)setting')" />
+      <_Profiles Include="$(RepoRoot)profiles\**\*.*" Condition="Exists('$(RepoRoot)profiles')" />
     </ItemGroup>
     <Copy SourceFiles="@(_Ref)"     DestinationFiles="$(OutDir)reference\%(_Ref.RecursiveDir)%(Filename)%(Extension)"   SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(_Zona)"    DestinationFiles="$(OutDir)zona\%(_Zona.RecursiveDir)%(Filename)%(Extension)"        SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(_Setting)" DestinationFiles="$(OutDir)setting\%(_Setting.RecursiveDir)%(Filename)%(Extension)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_Profiles)" DestinationFiles="$(OutDir)profiles\%(_Profiles.RecursiveDir)%(Filename)%(Extension)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

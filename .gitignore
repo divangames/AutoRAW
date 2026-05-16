@@ -12,3 +12,17 @@ AutoRAW-build.log
 
 # Bundled .NET SDK installer for Inno Setup (download locally; GitHub limit 100 MB per file)
 installer/dotnet-sdk-*.exe
+
+# Сборки и локальные бинарники (релизы — через GitHub Releases)
+dist/
+droples/
+
+# Кэш IDE
+*.lscache
+
+# Тяжёлые тестовые RAW (только локально; не коммитить в GitHub)
+test/Many/
+test/One/
+
+# Adobe Photoshop — исходники макетов (в репозитории держим экспорт PNG/JPG)
+*.psd

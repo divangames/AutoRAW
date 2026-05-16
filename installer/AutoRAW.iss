@@ -1,9 +1,15 @@
 ; Inno Setup 6 — AutoRAW (русский UI, x64)
-; Сборка: из корня репозитория запустите build-installer.ps1
+; Сборка: из корня репозитория запустите build-installer.ps1 (не компилируйте .iss вручную без /D — останутся заглушки 0.0.0).
+; Версии: при сборке build-installer.ps1 передаёт /DMyAppVersion и /DMyAppVerFull (из CHANGELOG).
+; Без /D компилятор подставит заглушки ниже — не перезаписывать через #define без #ifndef.
 
 #define MyAppName      "AutoRAW"
-#define MyAppVersion   "0.5.0"
-#define MyAppVerFull   "0.5.0.0"
+#ifndef MyAppVersion
+#define MyAppVersion   "0.0.0"
+#endif
+#ifndef MyAppVerFull
+#define MyAppVerFull   "0.0.0.0"
+#endif
 #define MyAppPublisher "WhiteCube"
 #define MyAppURL       "https://xn--e1aahbcnhejb1c.xn--p1ai/"
 #define MyAppExeName   "AutoRAW.exe"
@@ -14,7 +20,7 @@
 AppId={{E7C3A9B1-82F4-4D6A-9C1E-3F5A8B2D6C90}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion} Alpha
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -55,7 +61,7 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 [Messages]
 ; Текст на странице приветствия — версия и описание
 WelcomeLabel1=Добро пожаловать в мастер установки%nAutoRAW {#MyAppVersion}
-WelcomeLabel2=Этот мастер установит AutoRAW {#MyAppVersion} Alpha на ваш компьютер.%n%nПрограмма предназначена для пакетного кадрирования RAW-изображений по референсу или zona-маркеру.%n%nРазработчик: Радыгин Иван | Команда WhiteCube%n%nРекомендуется закрыть все запущенные программы перед продолжением.
+WelcomeLabel2=Этот мастер установит AutoRAW {#MyAppVersion} на ваш компьютер.%n%nПрограмма выполняет пакетное кадрирование RAW и изображений по референсу и по технологии «Zona» — собственному режиму кропа по красному маркёру (см. документацию).%n%nРазработчик: Радыгин Иван | Команда WhiteCube%n%nРекомендуется закрыть все запущенные программы перед продолжением.
 
 ; ----------------------------------------------------------------
 [Tasks]

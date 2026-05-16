@@ -34,6 +34,15 @@ public static class MarkdownDocumentFormatter
     margin-right: auto;
     background: #fafbfc;
   }
+  body.dialog-narrow {
+    max-width: none;
+    padding: 12px 14px 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    background: #ffffff;
+  }
+  body.dialog-narrow h2:first-child,
+  body.dialog-narrow h3:first-child { margin-top: 0.35em; }
   h1 { font-size: 1.75rem; font-weight: 600; margin: 0 0 0.75em; border-bottom: 1px solid #e1e4e8; padding-bottom: 0.35em; }
   h2 { font-size: 1.35rem; font-weight: 600; margin: 1.35em 0 0.55em; }
   h3 { font-size: 1.12rem; font-weight: 600; margin: 1.1em 0 0.45em; }
@@ -81,7 +90,6 @@ public static class MarkdownDocumentFormatter
   .markdown-body { }
 </style>
 </head>
-<body class="markdown-body">
 """;
 
     private const string HtmlShellSuffix = """
@@ -89,10 +97,13 @@ public static class MarkdownDocumentFormatter
 </html>
 """;
 
-    public static string ToHtmlDocument(string markdown, string? title = null)
+    public static string ToHtmlDocument(string markdown, string? title = null, bool narrowDialog = false)
     {
         var body = Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
         var t = string.IsNullOrWhiteSpace(title) ? "AutoRAW" : System.Net.WebUtility.HtmlEncode(title);
-        return HtmlShellPrefix + t + HtmlShellMid + body + HtmlShellSuffix;
+        var bodyOpen = narrowDialog
+            ? "<body class=\"markdown-body dialog-narrow\">\n"
+            : "<body class=\"markdown-body\">\n";
+        return HtmlShellPrefix + t + HtmlShellMid + bodyOpen + body + HtmlShellSuffix;
     }
 }

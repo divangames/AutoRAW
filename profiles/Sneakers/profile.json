@@ -1,0 +1,10 @@
+{
+  "displayName": "Кроссовки",
+  "color": {
+    "useStandardColorSpace": true,
+    "temperatureKelvin": 6500,
+    "tint": 4,
+    "contrast": 20,
+    "sharpness": 40
+  }
+}

@@ -7,7 +7,9 @@
         Width="500"
         MinHeight="360"
         ResizeMode="NoResize"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Background="{DynamicResource Theme.WindowBg}"
+        TextElement.Foreground="{DynamicResource Theme.TextPrimary}">
   <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
     <StackPanel>
 
@@ -24,7 +26,9 @@
         <Button Grid.Column="1" Content="Обзор…" Padding="10,4" Click="BrowseRef" />
       </Grid>
 
-      <TextBlock Text="Папка с zona" FontWeight="SemiBold" Margin="0,0,0,4" />
+      <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Theme.TextSubtle}" Margin="0,0,0,8"
+                 Text="Каталог `zona` на диске — маркёры технологии «Zona» (красная зона на снимке). Подробности — в Справка → Инструкция." />
+      <TextBlock Text="Папка Zona (каталог zona)" FontWeight="SemiBold" Margin="0,0,0,4" />
       <Grid Margin="0,0,0,16">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
@@ -36,7 +40,7 @@
 
       <GroupBox Header="Цветовой профиль (.xmp)" Padding="10" Margin="0,0,0,14">
         <StackPanel>
-          <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#555" Margin="0,0,0,8"
+          <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Theme.TextSubtle}" Margin="0,0,0,8"
                      Text="Загрузите XMP-пресет Lightroom / Camera Raw. Если не выбрать — цветокоррекция не применяется." />
 
           <!-- Выбор XMP -->
@@ -50,20 +54,20 @@
                      Margin="0,0,8,0"
                      IsReadOnly="True"
                      VerticalContentAlignment="Center"
-                     Background="#F5F5F5"
+                     Background="{DynamicResource Theme.FieldReadonlyBg}"
                      Text="(файл не выбран)" />
             <Button Grid.Column="1" Content="Загрузить .xmp…" Padding="10,4" Click="BrowseXmp" />
           </Grid>
 
           <!-- Краткая сводка параметров -->
           <Border x:Name="XmpSummaryBorder"
-                  Background="#F0F4FF" BorderBrush="#C8D8F0" BorderThickness="1"
+                  Background="{DynamicResource Theme.InfoPanelBg}" BorderBrush="{DynamicResource Theme.InfoPanelBorder}" BorderThickness="1"
                   CornerRadius="4" Padding="10,8"
                   Visibility="Collapsed">
             <TextBlock x:Name="XmpSummaryBlock"
                        FontSize="12"
                        TextWrapping="Wrap"
-                       Foreground="#333" />
+                       Foreground="{DynamicResource Theme.TextBody}" />
           </Border>
 
           <CheckBox x:Name="StdColorCheck"

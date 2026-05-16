@@ -1,0 +1,74 @@
+<Window x:Class="AutoRAW.LogPanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Чат Zona — AutoRAW"
+        Width="520"
+        Height="360"
+        MinWidth="320"
+        MinHeight="180"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="Transparent"
+        ShowInTaskbar="False">
+  <Window.Resources>
+    <Style x:Key="LogToolButtonStyle" TargetType="Button">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Background" Value="{DynamicResource Theme.ButtonSecondaryBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.ButtonSecondaryBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Theme.TextBody}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+  </Window.Resources>
+  <Border Background="{DynamicResource Theme.WindowBg}"
+          BorderBrush="{DynamicResource Theme.CardBorder}"
+          BorderThickness="1"
+          CornerRadius="4">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="32" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <Border Grid.Row="0"
+              Background="{DynamicResource Theme.MenuBarBg}"
+              BorderBrush="{DynamicResource Theme.MenuBarBorder}"
+              BorderThickness="0,0,0,1"
+              CornerRadius="4,4,0,0"
+              MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown"
+              Cursor="SizeAll">
+        <DockPanel Margin="8,0,6,0" LastChildFill="True">
+          <StackPanel DockPanel.Dock="Right"
+                      Orientation="Horizontal"
+                      VerticalAlignment="Center">
+            <Button Width="26"
+                    Height="22"
+                    Margin="4,0,0,0"
+                    ToolTip="Вернуть в главное окно"
+                    Style="{StaticResource LogToolButtonStyle}"
+                    Command="{Binding ToggleLogDetachCommand}"
+                    Content="⧉" />
+            <Button Width="26"
+                    Height="22"
+                    Margin="4,0,0,0"
+                    ToolTip="Закрыть чат"
+                    Style="{StaticResource LogToolButtonStyle}"
+                    Command="{Binding CloseLogPanelCommand}"
+                    Content="✕" />
+          </StackPanel>
+          <TextBlock VerticalAlignment="Center"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource Theme.TextPrimary}"
+                     Text="Чат Zona" />
+        </DockPanel>
+      </Border>
+      <ListBox Grid.Row="1"
+               x:Name="LogListBox"
+               Style="{StaticResource ZonaChatListBoxStyle}"
+               ItemsSource="{Binding LogLines}"
+               Margin="0" />
+    </Grid>
+  </Border>
+</Window>

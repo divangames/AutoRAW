@@ -14,6 +14,7 @@
     </Grid.RowDefinitions>
     <TextBlock x:Name="MessageText" Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,10" />
     <TextBox x:Name="InputText" Grid.Row="1" Margin="0,0,0,12" MinHeight="26" />
+    <PasswordBox x:Name="InputPassword" Grid.Row="1" Margin="0,0,0,12" MinHeight="26" Visibility="Collapsed" />
     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
       <Button MinWidth="88" Margin="0,0,8,0" IsDefault="True" Click="OkClick" Content="OK" />
       <Button MinWidth="88" IsCancel="True" Click="CancelClick" Content="Отмена" />

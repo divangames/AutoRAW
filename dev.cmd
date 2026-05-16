@@ -19,14 +19,16 @@ echo    1  Build Debug   (WinExe, no console window)
 echo    2  Run
 echo    3  Build Debug, then Run
 echo    4  Build Release (for distribution)
-echo    5  Build Installer.exe
+echo    5  Changelog for GitHub (from CHANGELOG.md, copy + dist file)
+echo    6  Build Installer.exe
 echo    0  Exit
 set /p "_k=> "
 if "%_k%"=="1" goto :do_build
 if "%_k%"=="2" goto :do_run
 if "%_k%"=="3" goto :do_both
 if "%_k%"=="4" goto :do_build_rel
-if "%_k%"=="5" goto :do_installer
+if "%_k%"=="5" goto :do_changelog_gh
+if "%_k%"=="6" goto :do_installer
 if "%_k%"=="0" exit /b 0
 goto :menu
 
@@ -42,6 +44,10 @@ call "%~dp0bat\_warn-if-autoraw-running.bat"
 dotnet build "src\AutoRAW\AutoRAW.csproj" -c Release
 echo.
 pause
+goto :menu
+
+:do_changelog_gh
+call "%~dp0bat\Changelog-For-GitHub.cmd"
 goto :menu
 
 :do_installer

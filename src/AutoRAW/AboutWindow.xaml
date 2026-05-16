@@ -7,32 +7,34 @@
         SizeToContent="Height"
         Width="420"
         ShowInTaskbar="False"
-        Background="#FAFAFA">
-  <Border Padding="22" BorderBrush="#D8DADC" BorderThickness="1">
+        Background="{DynamicResource Theme.DialogBg}">
+  <Border Padding="22"
+          BorderBrush="{DynamicResource Theme.DialogBorder}"
+          BorderThickness="1">
     <StackPanel>
       <TextBlock Text="AutoRAW"
                  FontSize="22"
                  FontWeight="SemiBold"
-                 Foreground="#1A1A1A" />
+                 Foreground="{DynamicResource Theme.TextPrimary}" />
       <TextBlock x:Name="VersionBlock"
                  Margin="0,6,0,16"
                  FontSize="13"
-                 Foreground="#555" />
+                 Foreground="{DynamicResource Theme.TextSubtle}" />
 
-      <TextBlock FontSize="13" TextWrapping="Wrap" Foreground="#333" Margin="0,0,0,10">
-        Пакетная обработка изображений и RAW: кадрирование по референсу или зоне (zona).
+      <TextBlock FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource Theme.TextBody}" Margin="0,0,0,10">
+        Пакетная обработка изображений и RAW: кадрирование по референсу или по технологии «Zona» (собственная разработка для AutoRAW).
       </TextBlock>
 
-      <TextBlock FontSize="13" Margin="0,0,0,4" Foreground="#333">
+      <TextBlock FontSize="13" Margin="0,0,0,4" Foreground="{DynamicResource Theme.TextBody}">
         <Run Text="Разработано командой: " />
         <Hyperlink NavigateUri="https://белаякоробка.рф/"
                    RequestNavigate="Link_OnRequestNavigate"
-                   Foreground="#0969da"
+                   Foreground="{DynamicResource Theme.Hyperlink}"
                    FontWeight="SemiBold">WhiteCube</Hyperlink>
       </TextBlock>
       <TextBlock Text="Разработчик: Радыгин Иван"
                  FontSize="13"
-                 Foreground="#333"
+                 Foreground="{DynamicResource Theme.TextBody}"
                  Margin="0,0,0,18" />
 
       <Button Content="Закрыть"

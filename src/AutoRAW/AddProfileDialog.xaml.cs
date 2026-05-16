@@ -30,7 +30,7 @@ public partial class AddProfileDialog : Window
     {
         using var dlg = new System.Windows.Forms.FolderBrowserDialog
         {
-            Description = "Папка с zona (красная рамка)"
+            Description = "Папка zona — маркёры технологии Zona (красная зона)"
         };
         if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             ZonaPathBox.Text = dlg.SelectedPath;
@@ -93,7 +93,7 @@ public partial class AddProfileDialog : Window
 
         if (!Directory.Exists(r) || !Directory.Exists(z))
         {
-            System.Windows.MessageBox.Show("Укажите существующие папки: референсы и zona.", "AutoRAW",
+            System.Windows.MessageBox.Show("Укажите существующие папки: референсы и каталог zona (Zona).", "AutoRAW",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }

@@ -5,7 +5,7 @@ using AutoRAW.Models;
 
 namespace AutoRAW.Services;
 
-/// <summary>Переопределение цвета для встроенного профиля «Кроссовки» (и при необходимости других по имени).</summary>
+/// <summary>Переопределение цвета для профилей из комплекта приложения (в т.ч. «Кроссовки»): хранится в %AppData%, т.к. каталог программы может быть только для чтения.</summary>
 public static class ProfileColorOverrideStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

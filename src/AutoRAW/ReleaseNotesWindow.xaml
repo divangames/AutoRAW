@@ -1,0 +1,47 @@
+<Window x:Class="AutoRAW.ReleaseNotesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Обновление установлено"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        Width="520"
+        MaxHeight="580"
+        ShowInTaskbar="False"
+        Background="{DynamicResource Theme.WindowBg}">
+  <Border Padding="20"
+          BorderBrush="{DynamicResource Theme.DialogChromeBorder}"
+          BorderThickness="1"
+          CornerRadius="2"
+          Background="{DynamicResource Theme.DialogChromeBg}">
+    <StackPanel>
+      <TextBlock FontSize="17"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource Theme.GithubTitle}"
+                 TextWrapping="Wrap"
+                 x:Name="TitleBlock" />
+      <TextBlock Margin="0,8,0,14"
+                 FontSize="13"
+                 Foreground="{DynamicResource Theme.GithubMuted}"
+                 LineHeight="20"
+                 TextWrapping="Wrap"
+                 Text="Кратко — что в этой версии." />
+      <Border BorderBrush="{DynamicResource Theme.GithubPaneBorder}"
+              BorderThickness="1"
+              Background="{DynamicResource Theme.GithubPaneBg}"
+              CornerRadius="8"
+              Height="340"
+              Margin="0,0,0,16"
+              SnapsToDevicePixels="True">
+        <WebBrowser x:Name="BodyBrowser" />
+      </Border>
+      <Button Content="OK"
+              HorizontalAlignment="Right"
+              MinWidth="108"
+              Padding="16,9"
+              IsDefault="True"
+              IsCancel="True"
+              Click="Ok_Click" />
+    </StackPanel>
+  </Border>
+</Window>

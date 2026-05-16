@@ -7,18 +7,20 @@
         ShowInTaskbar="False"
         SizeToContent="Height"
         Width="440"
-        Background="#FAFAFA">
-  <Border Padding="20" BorderBrush="#D0D0D0" BorderThickness="0,0,0,0">
+        Background="{DynamicResource Theme.DialogBg}">
+  <Border Padding="20"
+          BorderBrush="{DynamicResource Theme.AlphaChromeBorder}"
+          BorderThickness="0,0,0,0">
     <StackPanel>
       <TextBlock Text="Режим альфа"
                  FontSize="16"
                  FontWeight="SemiBold"
-                 Foreground="#1A1A1A"
+                 Foreground="{DynamicResource Theme.TextPrimary}"
                  Margin="0,0,0,12" />
       <TextBlock TextWrapping="Wrap"
                  FontSize="13"
                  LineHeight="20"
-                 Foreground="#333"
+                 Foreground="{DynamicResource Theme.TextBody}"
                  Margin="0,0,0,16"
                  Text="Цветовой профиль и коррекция в AutoRAW пока работают в режиме альфа. Результат может вас не устроить.&#x0a;&#x0a;Нажимая «Продолжить», вы подтверждаете, что это понимаете и соглашаетесь продолжить на свой страх и риск; претензии к результату в рамках альфа-версии не предъявляются." />
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

@@ -7,53 +7,64 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterScreen"
         Topmost="True"
-        Width="420"
-        Height="232"
-        Background="#F5F6F8"
-        BorderBrush="#C8CCD0"
-        BorderThickness="1">
-  <Grid Margin="24,20">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
+        Width="800"
+        Height="350"
+        Background="Black"
+        SnapsToDevicePixels="True">
 
-    <TextBlock Grid.Row="0"
-               Text="AutoRAW"
-               FontSize="26"
-               FontWeight="SemiBold"
-               Foreground="#1A1A1A" />
+  <Grid ClipToBounds="True">
+    <Image x:Name="SplashImage"
+           Stretch="UniformToFill"
+           HorizontalAlignment="Stretch"
+           VerticalAlignment="Stretch"
+           Source="pack://application:,,,/Assets/SplashScreen.png" />
 
-    <ProgressBar x:Name="BootProgress"
-                 Grid.Row="1"
-                 Height="6"
-                 Margin="0,18,0,12"
-                 IsIndeterminate="True"
-                 Foreground="#0F6CBD"
-                 Background="#E2E4E8"
-                 BorderThickness="0" />
-
-    <Border Grid.Row="2"
-            Background="#ECEEF1"
-            BorderBrush="#D8DADC"
-            BorderThickness="1"
-            Padding="10,8"
-            CornerRadius="0">
-      <TextBlock x:Name="StatusBarText"
-                 FontSize="12"
-                 Foreground="#333"
-                 TextWrapping="Wrap"
-                 Text="Загрузка интерфейса…" />
-    </Border>
-
+    <!-- Версия: справа вверху, только цифры Major.Minor.Build -->
     <TextBlock x:Name="VersionLine"
-               Grid.Row="3"
-               Margin="0,12,0,0"
-               HorizontalAlignment="Center"
-               FontSize="12"
-               Foreground="#666"
+               HorizontalAlignment="Right"
+               VerticalAlignment="Top"
+               Margin="0,17,21,0"
+               FontSize="13"
+               FontWeight="SemiBold"
+               Foreground="#0F172A"
                Text="Версия" />
+
+    <!-- Низ: статус с анимированной полосой, слева -->
+    <Grid VerticalAlignment="Bottom"
+          HorizontalAlignment="Stretch"
+          Margin="19,0,19,21">
+      <Border x:Name="StatusChrome"
+              HorizontalAlignment="Left"
+              MinWidth="180"
+              MaxWidth="720"
+              VerticalAlignment="Center"
+              Background="#CC0F172A"
+              BorderBrush="#33FFFFFF"
+              BorderThickness="1"
+              CornerRadius="4"
+              Padding="11,9">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="6" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <TextBlock x:Name="StatusBarText"
+                     Grid.Row="0"
+                     FontSize="12"
+                     Foreground="#F1F5F9"
+                     TextWrapping="Wrap"
+                     Text="Загрузка интерфейса…" />
+          <ProgressBar x:Name="StatusProgressBar"
+                       Grid.Row="2"
+                       Height="3"
+                       BorderThickness="0"
+                       Background="#334155"
+                       Foreground="#0F6CBD"
+                       IsIndeterminate="True"
+                       IsHitTestVisible="False" />
+        </Grid>
+      </Border>
+    </Grid>
   </Grid>
 </Window>

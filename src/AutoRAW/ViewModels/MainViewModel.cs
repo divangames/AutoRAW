@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -17,7 +18,11 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly Dispatcher _dispatcher;
     private readonly AutoCropBatchService _batch = new();
+    private readonly BatchRunController _batchRun = new();
     private ProductProfile? _draftSourceProfile;
+
+    /// <summary>После «Пропустить» в авто-проверке не показывать снова до следующего запуска приложения.</summary>
+    private bool _skipGithubUpdatePromptThisSession;
 
     public event EventHandler? ProfileMenuInvalidated;
 
@@ -34,23 +39,53 @@ public partial class MainViewModel : ObservableObject
             _ = ExecutePreviewRefreshAsync();
         };
 
-        AllProducts.Add(ProductProfile.BuiltInSneakers);
+        foreach (var b in ProductProfileStore.LoadBuiltInMenuProfiles())
+            AllProducts.Add(b);
         UserProfileBundleService.EnsureDirectories();
         foreach (var c in ProductProfileStore.LoadCustom())
             AllProducts.Add(c);
 
-        SelectedProduct = ProductProfile.BuiltInSneakers;
+        SelectedProduct = PreferredProfileFallback;
         ApplyProductFolders();
         _applyColorCorrection = false;
         OnPropertyChanged(nameof(ApplyColorCorrection));
         NotifyColorSummaryProperties();
 
-        LogLines.Add("Простой режим: папка «Товар», опционально выход. Профиль — меню «Профиль». Вид → журнал / расширенный режим. Цветокоррекция: галочка «Применить» — только после подтверждения в альфа-режиме.");
+        var wp = WindowPanelPreferenceStore.GetSnapshot();
+        IsLogPanelVisible = wp.LogPanelVisible;
+        IsColorProfilePanelVisible = wp.ColorProfilePanelVisible;
+        IsPreviewPanelVisible = wp.PreviewPanelVisible;
+
+        LogLines.Add(new LogLineViewModel(ZonaMessages.NextGreeting(), LogLineKind.Zona, fromZona: true));
+        LogLines.Add(new LogLineViewModel(
+            "Простой режим: папка «Товар» (включая вложенные папки), опционально выход. Профиль — меню «Профиль». Вид → Окна (чат Zona, цветовой профиль, превью) и расширенный режим."));
+    }
+
+    /// <summary>Первый профиль «Кроссовки» в меню или первый не-черновик.</summary>
+    private ProductProfile PreferredProfileFallback =>
+        AllProducts.FirstOrDefault(AppPaths.ReferencesBuiltInSneakersFolders)
+        ?? AllProducts.FirstOrDefault(p => !p.IsDraft)
+        ?? ProductProfile.BuiltInSneakers;
+
+    /// <summary>Число элементов в начале списка: встроенные/из комплекта, до черновика или первого пользовательского профиля.</summary>
+    private int CountLeadingNonDraftCatalogProfiles()
+    {
+        var n = 0;
+        foreach (var p in AllProducts)
+        {
+            if (p.IsDraft)
+                break;
+            if (AppPaths.IsUserInstallProfile(p))
+                break;
+            n++;
+        }
+
+        return n;
     }
 
     private readonly DispatcherTimer _previewDebounce;
 
-    public ObservableCollection<string> LogLines { get; } = new();
+    public ObservableCollection<LogLineViewModel> LogLines { get; } = new();
 
     public ObservableCollection<string> ReferenceFiles { get; } = new();
 
@@ -66,6 +101,15 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Панель журнала внизу окна (по умолчанию скрыта).</summary>
     [ObservableProperty] private bool _isLogPanelVisible;
+
+    /// <summary>Блок «Цветовой профиль» в простом и расширенном режиме.</summary>
+    [ObservableProperty] private bool _isColorProfilePanelVisible = false;
+
+    /// <summary>Блок «Превью» в простом и расширенном режиме.</summary>
+    [ObservableProperty] private bool _isPreviewPanelVisible = true;
+
+    /// <summary>Тема интерфейса (меню «Вид → Тема»), сохраняется в %AppData%\AutoRAW\theme_prefs.json.</summary>
+    [ObservableProperty] private AppUiTheme _uiTheme = ThemePreferenceStore.Get();
 
     [ObservableProperty] private CropMappingRowViewModel? _selectedMappingRow;
 
@@ -86,12 +130,31 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _outputFolder = string.Empty;
 
-    /// <summary>Папка с маркированными zona-изображениями (красный прямоугольник = зона кропа).</summary>
+    /// <summary>Папка с маркёрными изображениями технологии «Zona» (красная зона = кроп на парном исходнике).</summary>
     [ObservableProperty] private string _zonaFolder = string.Empty;
 
     [ObservableProperty] private double _analysisMaxEdge = SubjectBoundsEstimator.DefaultAnalysisMaxEdge;
 
     [ObservableProperty] private bool _isBusy;
+
+    [ObservableProperty] private bool _isBatchPaused;
+
+    [ObservableProperty] private bool _isBatchComplete;
+
+    [ObservableProperty] private bool _isLogDetached;
+
+    [ObservableProperty] private double _batchProgressValue;
+
+    [ObservableProperty] private double _batchProgressMaximum = 100;
+
+    [ObservableProperty] private string _batchStatusText = string.Empty;
+
+    public bool IsLogDockedVisible => IsLogPanelVisible && !IsLogDetached;
+
+    public bool IsBatchStatusVisible => IsBusy || IsBatchComplete;
+
+    public string BatchPrimaryButtonText =>
+        !IsBusy ? "Запустить кадрирование" : (IsBatchPaused ? "Продолжить" : "Пауза");
 
     /// <summary>Идёт пересчёт превью (показ полосы и текста, чтобы не казалось зависанием).</summary>
     [ObservableProperty] private bool _isPreviewLoading;
@@ -152,7 +215,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public bool IsSneakersProfile => ReferenceEquals(SelectedProduct, ProductProfile.BuiltInSneakers);
+    public bool IsSneakersProfile => AppPaths.ReferencesBuiltInSneakersFolders(SelectedProduct);
 
     partial void OnReferenceFolderChanged(string value)
     {
@@ -164,7 +227,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnZonaFolderChanged(string value)
     {
-        RunBatchCommand.NotifyCanExecuteChanged();
+        NotifyBatchCommandsChanged();
         SchedulePreviewRefresh();
         ConsiderDraftPromotion();
         CommitDraftApplyCommand.NotifyCanExecuteChanged();
@@ -173,7 +236,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedReferenceFileChanged(string value)
     {
-        RunBatchCommand.NotifyCanExecuteChanged();
+        NotifyBatchCommandsChanged();
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
     }
 
@@ -183,11 +246,37 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedMappingRowChanged(CropMappingRowViewModel? value) => SchedulePreviewRefresh();
 
-    partial void OnOutputFolderChanged(string value) => RunBatchCommand.NotifyCanExecuteChanged();
+    partial void OnOutputFolderChanged(string value) => NotifyBatchCommandsChanged();
 
     partial void OnSaveAsWebPChanged(bool value) => ExportPreferenceStore.SetSaveAsWebP(value);
 
-    partial void OnIsBusyChanged(bool value) => RunBatchCommand.NotifyCanExecuteChanged();
+    partial void OnIsBusyChanged(bool value)
+    {
+        NotifyBatchCommandsChanged();
+        CancelBatchCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(BatchPrimaryButtonText));
+        OnPropertyChanged(nameof(IsBatchStatusVisible));
+        if (!value)
+            IsBatchPaused = false;
+    }
+
+    partial void OnIsBatchPausedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(BatchPrimaryButtonText));
+        NotifyBatchCommandsChanged();
+        if (IsBusy)
+            UpdateBatchStatusText();
+    }
+
+    partial void OnIsBatchCompleteChanged(bool value) => OnPropertyChanged(nameof(IsBatchStatusVisible));
+
+    partial void OnIsLogDetachedChanged(bool value) => OnPropertyChanged(nameof(IsLogDockedVisible));
+
+    partial void OnIsLogPanelVisibleChanged(bool value)
+    {
+        WindowPanelPreferenceStore.SetLogPanelVisible(value);
+        OnPropertyChanged(nameof(IsLogDockedVisible));
+    }
 
     partial void OnIsAdvancedViewChanged(bool value)
     {
@@ -195,6 +284,58 @@ public partial class MainViewModel : ObservableObject
         SchedulePreviewRefresh();
         CommitDraftApplyCommand.NotifyCanExecuteChanged();
         CommitDraftNewCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsColorProfilePanelVisibleChanged(bool value) =>
+        WindowPanelPreferenceStore.SetColorProfilePanelVisible(value);
+
+    partial void OnIsPreviewPanelVisibleChanged(bool value) =>
+        WindowPanelPreferenceStore.SetPreviewPanelVisible(value);
+
+    partial void OnUiThemeChanged(AppUiTheme value)
+    {
+        var app = System.Windows.Application.Current;
+        if (app is not null)
+            ThemeService.ApplyUserPreference(app, value);
+        OnPropertyChanged(nameof(IsThemeMenuLight));
+        OnPropertyChanged(nameof(IsThemeMenuDark));
+        OnPropertyChanged(nameof(IsThemeMenuSystem));
+    }
+
+    public bool IsThemeMenuLight
+    {
+        get => UiTheme == AppUiTheme.Light;
+        set
+        {
+            if (value)
+                UiTheme = AppUiTheme.Light;
+            else if (UiTheme == AppUiTheme.Light)
+                OnPropertyChanged(nameof(IsThemeMenuLight));
+        }
+    }
+
+    public bool IsThemeMenuDark
+    {
+        get => UiTheme == AppUiTheme.Dark;
+        set
+        {
+            if (value)
+                UiTheme = AppUiTheme.Dark;
+            else if (UiTheme == AppUiTheme.Dark)
+                OnPropertyChanged(nameof(IsThemeMenuDark));
+        }
+    }
+
+    public bool IsThemeMenuSystem
+    {
+        get => UiTheme == AppUiTheme.System;
+        set
+        {
+            if (value)
+                UiTheme = AppUiTheme.System;
+            else if (UiTheme == AppUiTheme.System)
+                OnPropertyChanged(nameof(IsThemeMenuSystem));
+        }
     }
 
     partial void OnSelectedProductChanged(ProductProfile value)
@@ -229,7 +370,7 @@ public partial class MainViewModel : ObservableObject
         if (profile.IsDraft)
             return profile.Color;
 
-        if (ReferenceEquals(profile, ProductProfile.BuiltInSneakers))
+        if (AppPaths.ReferencesBuiltInSneakersFolders(profile))
         {
             var stored = ProfileColorOverrideStore.TryGet(profile.DisplayName);
             if (stored is not null)
@@ -246,7 +387,22 @@ public partial class MainViewModel : ObservableObject
             return profile.Color;
         }
 
-        // Для пользовательских профилей: если указан XmpFilePath — перечитываем
+        if (AppPaths.IsUserInstallProfile(profile))
+        {
+            if (profile.Color.XmpFilePath is { } userXmp && File.Exists(userXmp))
+            {
+                try { return XmpSettingsParser.Parse(userXmp); }
+                catch { /* fallback */ }
+            }
+
+            return profile.Color;
+        }
+
+        // Профили из комплекта приложения (не в %LocalAppData%): переопределения в Roaming
+        var shippedStored = ProfileColorOverrideStore.TryGet(profile.DisplayName);
+        if (shippedStored is not null)
+            return shippedStored;
+
         if (profile.Color.XmpFilePath is { } path && File.Exists(path))
         {
             try { return XmpSettingsParser.Parse(path); }
@@ -261,7 +417,7 @@ public partial class MainViewModel : ObservableObject
         var row = SelectedMappingRow ?? MappingRows.FirstOrDefault();
         if (row is not null && File.Exists(row.InputPath))
             return row.InputPath;
-        return ImageFileCatalog.ListImagesInFolder(InputFolder).FirstOrDefault();
+        return ImageFileCatalog.ListImagesRecursive(InputFolder).FirstOrDefault();
     }
 
     public void SaveColorProfileSettings(ColorCorrectionSettings settings)
@@ -283,11 +439,11 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (ReferenceEquals(SelectedProduct, ProductProfile.BuiltInSneakers))
+        if (AppPaths.ReferencesBuiltInSneakersFolders(SelectedProduct))
         {
             ProfileColorOverrideStore.Set(SelectedProduct.DisplayName, settings);
         }
-        else
+        else if (AppPaths.IsUserInstallProfile(SelectedProduct))
         {
             for (var i = 0; i < AllProducts.Count; i++)
             {
@@ -308,6 +464,19 @@ public partial class MainViewModel : ObservableObject
                         updated.Color);
                 }
 
+                break;
+            }
+        }
+        else
+        {
+            ProfileColorOverrideStore.Set(SelectedProduct.DisplayName, settings);
+            for (var i = 0; i < AllProducts.Count; i++)
+            {
+                if (!ReferenceEquals(AllProducts[i], SelectedProduct))
+                    continue;
+                var updated = SelectedProduct.WithColor(settings);
+                AllProducts[i] = updated;
+                SelectedProduct = updated;
                 break;
             }
         }
@@ -345,13 +514,13 @@ public partial class MainViewModel : ObservableObject
 
     private void OnMappingRowsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        RunBatchCommand.NotifyCanExecuteChanged();
+        NotifyBatchCommandsChanged();
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
     }
 
     private void OnMappingRowChanged()
     {
-        RunBatchCommand.NotifyCanExecuteChanged();
+        NotifyBatchCommandsChanged();
         SchedulePreviewRefresh();
     }
 
@@ -363,7 +532,7 @@ public partial class MainViewModel : ObservableObject
         if (!Directory.Exists(ReferenceFolder))
         {
             SyncMappingRowReferences();
-            RunBatchCommand.NotifyCanExecuteChanged();
+            NotifyBatchCommandsChanged();
             ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
             SchedulePreviewRefresh();
             return;
@@ -383,7 +552,7 @@ public partial class MainViewModel : ObservableObject
         else
         {
             SyncMappingRowReferences();
-            RunBatchCommand.NotifyCanExecuteChanged();
+            NotifyBatchCommandsChanged();
             ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
             SchedulePreviewRefresh();
         }
@@ -413,13 +582,13 @@ public partial class MainViewModel : ObservableObject
         if (!Directory.Exists(InputFolder))
         {
             ClearPreviewImages();
-            RunBatchCommand.NotifyCanExecuteChanged();
+            NotifyBatchCommandsChanged();
             ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
             return;
         }
 
         var def = DefaultReferenceForNewRow();
-        foreach (var path in ImageFileCatalog.ListImagesInFolder(InputFolder))
+        foreach (var path in ImageFileCatalog.ListImagesRecursive(InputFolder))
         {
             var matched = ReferenceNameMatcher.TryMatch(path, ReferenceFiles) ?? def;
             MappingRows.Add(new CropMappingRowViewModel(path, matched, OnMappingRowChanged));
@@ -427,7 +596,7 @@ public partial class MainViewModel : ObservableObject
 
         SelectedMappingRow = MappingRows.FirstOrDefault();
 
-        RunBatchCommand.NotifyCanExecuteChanged();
+        NotifyBatchCommandsChanged();
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
         SchedulePreviewRefresh();
     }
@@ -466,7 +635,7 @@ public partial class MainViewModel : ObservableObject
     private void BrowseZonaFolder()
     {
         using var dlg = new Forms.FolderBrowserDialog();
-        dlg.Description = "Выберите папку с zona-изображениями (красный прямоугольник = кроп)";
+        dlg.Description = "Папка zona: маркёры технологии Zona (красная зона на изображении)";
         if (dlg.ShowDialog() != Forms.DialogResult.OK)
             return;
 
@@ -564,6 +733,198 @@ public partial class MainViewModel : ObservableObject
         w.ShowDialog();
     }
 
+    [RelayCommand]
+    private void ShowTelegramSettings()
+    {
+        var w = new ZonaTelegramSettingsDialog
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+        };
+        w.ShowDialog();
+    }
+
+    /// <summary>После загрузки главного окна: «что нового» после обновления, затем проверка новой версии.</summary>
+    public void SchedulePostLoadUpdateFlow()
+    {
+        _ = PostLoadUpdateSequenceAsync();
+    }
+
+    private async Task PostLoadUpdateSequenceAsync()
+    {
+        try
+        {
+            await Task.Delay(900).ConfigureAwait(false);
+            await TryShowPendingReleaseNotesAsync().ConfigureAwait(true);
+            await TryPromptGitHubUpdateAsync(manual: false).ConfigureAwait(true);
+        }
+        catch
+        {
+            /* стартовые проверки не должны ломать запуск */
+        }
+    }
+
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        await TryPromptGitHubUpdateAsync(manual: true).ConfigureAwait(true);
+    }
+
+    private async Task TryShowPendingReleaseNotesAsync()
+    {
+        await _dispatcher.InvokeAsync(() =>
+        {
+            if (!PendingReleaseNotesStore.TryTake(out var ver, out var body))
+                return;
+            var w = new ReleaseNotesWindow(ver, body)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow,
+            };
+            w.ShowDialog();
+        });
+    }
+
+    private async Task TryPromptGitHubUpdateAsync(bool manual)
+    {
+        if (!manual && _skipGithubUpdatePromptThisSession)
+            return;
+
+        GitHubReleaseOffer? offer = null;
+        Exception? err = null;
+        try
+        {
+            offer = manual
+                ? await GitHubUpdateService.TryGetLatestOfferAsync().ConfigureAwait(false)
+                : await GitHubUpdateService.TryGetLatestOfferNewerThanAsync(AppMetadata.AssemblyVersion).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            err = ex;
+        }
+
+        await _dispatcher.InvokeAsync(async () =>
+        {
+            var owner = System.Windows.Application.Current?.MainWindow;
+            if (err is not null)
+            {
+                if (manual)
+                {
+                    System.Windows.MessageBox.Show(
+                        $"Не удалось проверить обновление:\n{err.Message}",
+                        "Проверка обновления",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+
+                return;
+            }
+
+            if (offer is null)
+            {
+                if (manual)
+                {
+                    System.Windows.MessageBox.Show(
+                        "Сейчас нельзя получить сведения о новой версии: данные о релизе недоступны или публикация неполная.\n\n"
+                        + "Если вы ставили программу из последнего официального выпуска, у вас, скорее всего, уже последняя версия. Попробуйте проверить обновление позже.",
+                        "Проверка обновления",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+
+                return;
+            }
+
+            var cur = AppMetadata.AssemblyVersion;
+            if (offer.Version <= cur)
+            {
+                if (manual)
+                {
+                    var vUi = AppMetadata.FormatVersionUi(cur);
+                    System.Windows.MessageBox.Show(
+                        $"У вас установлена последняя доступная версия ({vUi}).",
+                        "Проверка обновления",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+
+                return;
+            }
+
+            var dlg = new UpdateAvailableWindow(offer, cur) { Owner = owner };
+            if (dlg.ShowDialog() != true || !dlg.UserChoseInstall)
+            {
+                if (!manual)
+                    _skipGithubUpdatePromptThisSession = true;
+                return;
+            }
+
+            await RunInstallUpdateFlowAsync(offer).ConfigureAwait(true);
+        });
+    }
+
+    private async Task RunInstallUpdateFlowAsync(GitHubReleaseOffer offer)
+    {
+        var owner = System.Windows.Application.Current?.MainWindow;
+        var tmp = Path.Combine(Path.GetTempPath(), $"AutoRAW-Setup-{offer.Version}-ru-{Guid.NewGuid():N}.exe");
+        var win = new UpdateDownloadProgressWindow { Owner = owner };
+        win.Show();
+        try
+        {
+            var progress = new Progress<(long BytesReceived, long? TotalBytes)>(state =>
+            {
+                _ = win.Dispatcher.BeginInvoke(
+                    new Action(() => win.SetProgress(state.BytesReceived, state.TotalBytes)),
+                    DispatcherPriority.Normal);
+            });
+            await GitHubUpdateService.DownloadToFileAsync(offer.DownloadUrl, tmp, progress, CancellationToken.None)
+                .ConfigureAwait(false);
+            var info = new FileInfo(tmp);
+            if (!info.Exists || info.Length < 4096)
+                throw new IOException("Загруженный файл слишком мал — проверьте подключение к интернету и повторите попытку позже.");
+
+            PendingReleaseNotesStore.WritePending(offer.TagLabel, offer.BodyMarkdown);
+
+            await win.Dispatcher.InvokeAsync(() => win.Close(), DispatcherPriority.Normal);
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = tmp,
+                Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART /SP-",
+                UseShellExecute = true,
+            });
+            await Task.Delay(500).ConfigureAwait(false);
+            _dispatcher.Invoke(() => System.Windows.Application.Current?.Shutdown(0));
+        }
+        catch (Exception ex)
+        {
+            await win.Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    win.Close();
+                }
+                catch
+                {
+                    /* ignore */
+                }
+
+                System.Windows.MessageBox.Show(
+                    $"Не удалось загрузить или запустить обновление.\n\n{ex.Message}",
+                    "AutoRAW",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            });
+            try
+            {
+                if (File.Exists(tmp))
+                    File.Delete(tmp);
+            }
+            catch
+            {
+                /* ignore */
+            }
+        }
+    }
+
     private bool CanCommitDraft =>
         IsAdvancedView
         && SelectedProduct.IsDraft
@@ -578,10 +939,10 @@ public partial class MainViewModel : ObservableObject
         if (src is null)
             return;
 
-        if (ReferenceEquals(src, ProductProfile.BuiltInSneakers))
+        if (!AppPaths.IsUserInstallProfile(src))
         {
             System.Windows.MessageBox.Show(
-                "Профиль «Кроссовки» нельзя перезаписать на диске. Используйте «Сохранить как новый профиль…» — данные попадут в %LocalAppData%\\AutoRAW\\user files\\Profile.",
+                "Профиль из комплекта приложения нельзя перезаписать на диске. Используйте «Сохранить как новый профиль…» — данные попадут в %LocalAppData%\\AutoRAW\\user files\\Profile.",
                 "AutoRAW",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -595,7 +956,7 @@ public partial class MainViewModel : ObservableObject
         ReloadCustomProfilesFromDisk();
         var pick = AllProducts.FirstOrDefault(p =>
             !p.IsDraft && p.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase));
-        SelectedProduct = pick ?? ProductProfile.BuiltInSneakers;
+        SelectedProduct = pick ?? PreferredProfileFallback;
         ApplyProductFolders();
         AppendLog($"Профиль «{name}» обновлён (%LocalAppData%\\AutoRAW\\user files\\Profile).");
         InvalidateProfileMenu();
@@ -606,7 +967,7 @@ public partial class MainViewModel : ObservableObject
     {
         var nameDlg = new PromptDialog(
                 "Новый профиль",
-                "Имя профиля (%LocalAppData%\\AutoRAW\\user files\\Profile\\… будут reference, zona, setting):",
+                "Имя профиля (%LocalAppData%\\AutoRAW\\user files\\Profile\\… будут reference, zona для Zona, setting):",
                 "Новый профиль")
             { Owner = System.Windows.Application.Current?.MainWindow };
         if (nameDlg.ShowDialog() != true || string.IsNullOrWhiteSpace(nameDlg.Result))
@@ -620,7 +981,7 @@ public partial class MainViewModel : ObservableObject
         ReloadCustomProfilesFromDisk();
         var pick = AllProducts.FirstOrDefault(p =>
             !p.IsDraft && p.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase));
-        SelectedProduct = pick ?? ProductProfile.BuiltInSneakers;
+        SelectedProduct = pick ?? PreferredProfileFallback;
         ApplyProductFolders();
         AppendLog($"Создан профиль «{name}» (%LocalAppData%\\AutoRAW\\user files\\Profile).");
         InvalidateProfileMenu();
@@ -629,8 +990,12 @@ public partial class MainViewModel : ObservableObject
     private void ReloadCustomProfilesFromDisk()
     {
         RemoveDraftFromList();
-        for (var i = AllProducts.Count - 1; i >= 1; i--)
-            AllProducts.RemoveAt(i);
+        for (var i = AllProducts.Count - 1; i >= 0; i--)
+        {
+            if (AppPaths.IsUserInstallProfile(AllProducts[i]))
+                AllProducts.RemoveAt(i);
+        }
+
         foreach (var c in ProductProfileStore.LoadCustom())
             AllProducts.Add(c);
     }
@@ -669,7 +1034,7 @@ public partial class MainViewModel : ObservableObject
         RemoveDraftFromList();
         var color = GetEffectiveColorFor(SelectedProduct);
         var draft = ProductProfile.CreateUnsavedDraft(color);
-        AllProducts.Insert(1, draft);
+        AllProducts.Insert(CountLeadingNonDraftCatalogProfiles(), draft);
         SelectedProduct = draft;
         InvalidateProfileMenu();
         AppendLog("Черновик: «Несохранённые изменения». Сохраните через кнопки ниже.");
@@ -682,7 +1047,7 @@ public partial class MainViewModel : ObservableObject
         _draftSourceProfile = SelectedProduct;
         RemoveDraftFromList();
         var draft = ProductProfile.CreateUnsavedDraft(settings);
-        AllProducts.Insert(1, draft);
+        AllProducts.Insert(CountLeadingNonDraftCatalogProfiles(), draft);
         SelectedProduct = draft;
         InvalidateProfileMenu();
     }
@@ -710,7 +1075,7 @@ public partial class MainViewModel : ObservableObject
         if (src is null)
             return true;
 
-        if (!ReferenceEquals(src, ProductProfile.BuiltInSneakers))
+        if (AppPaths.IsUserInstallProfile(src))
         {
             UserProfileBundleService.WriteBundle(src.DisplayName, ReferenceFolder, ZonaFolder, color);
             RemoveDraftFromList();
@@ -755,7 +1120,7 @@ public partial class MainViewModel : ObservableObject
             if (!File.Exists(row.InputPath))
                 return false;
 
-            // Если zona задана — референс для строки необязателен
+            // Если задана папка zona (технология Zona) — референс для строки необязателен
             if (!hasZona)
             {
                 if (!Directory.Exists(ReferenceFolder))
@@ -788,71 +1153,232 @@ public partial class MainViewModel : ObservableObject
            && !string.IsNullOrWhiteSpace(SelectedReferenceFile)
            && ReferenceFiles.Contains(SelectedReferenceFile);
 
+    /// <summary>Пауза/продолжение — отдельная команда: async «Запуск» блокирует кнопку до конца пакета.</summary>
+    [RelayCommand(CanExecute = nameof(CanPauseOrResumeBatch))]
+    private void PauseOrResumeBatch() => TogglePauseBatch();
+
+    private bool CanPauseOrResumeBatch() => IsBusy;
+
     [RelayCommand(CanExecute = nameof(CanRunBatch))]
+    private async Task StartBatchAsync() => await RunBatch();
+
+    [RelayCommand(CanExecute = nameof(CanBatchPrimaryClick))]
+    private void BatchPrimaryClick()
+    {
+        if (!IsBusy)
+            _ = StartBatchAsync();
+        else
+            PauseOrResumeBatch();
+    }
+
+    private bool CanBatchPrimaryClick() => IsBusy ? CanPauseOrResumeBatch() : CanRunBatch();
+
+    private void NotifyBatchCommandsChanged()
+    {
+        BatchPrimaryClickCommand.NotifyCanExecuteChanged();
+        PauseOrResumeBatchCommand.NotifyCanExecuteChanged();
+        StartBatchCommand.NotifyCanExecuteChanged();
+        CancelBatchCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanControlBatch))]
+    private void CancelBatch()
+    {
+        var cancelPhrase = ZonaMessages.NextCancel();
+        AppendLog(cancelPhrase, LogLineKind.Cancel, fromZona: true);
+        NotifyTelegram($"🚫 ZONA\n{cancelPhrase}");
+        _batchRun.Cancel();
+    }
+
+    private bool CanControlBatch() => IsBusy;
+
+    private void TogglePauseBatch()
+    {
+        if (IsBatchPaused)
+        {
+            _batchRun.Resume();
+            IsBatchPaused = false;
+            AppendLog(ZonaMessages.NextResume(), LogLineKind.Pause, fromZona: true);
+        }
+        else
+        {
+            _batchRun.Pause();
+            IsBatchPaused = true;
+            BatchStatusText = "На паузе";
+            AppendLog(ZonaMessages.NextPause(), LogLineKind.Pause, fromZona: true);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleLogDetach()
+    {
+        if (!IsLogPanelVisible)
+            IsLogPanelVisible = true;
+
+        IsLogDetached = !IsLogDetached;
+    }
+
+    [RelayCommand]
+    private void CloseLogPanel()
+    {
+        IsLogPanelVisible = false;
+        IsLogDetached = false;
+    }
+
     private async Task RunBatch()
     {
         bool hasZona = Directory.Exists(ZonaFolder);
         bool hasRef = Directory.Exists(ReferenceFolder);
 
         var explicitOut = string.IsNullOrWhiteSpace(OutputFolder) ? null : OutputFolder.Trim();
+        var inputRoot = Path.GetFullPath(InputFolder);
 
         var pairs = MappingRows
             .Select(r =>
             {
                 var refPath = hasRef && !string.IsNullOrWhiteSpace(r.SelectedReferenceFile)
                     ? Path.Combine(ReferenceFolder, r.SelectedReferenceFile)
-                    : r.InputPath; // fallback — сервис проверит zona первым
+                    : r.InputPath;
                 return (r.InputPath, refPath);
             })
             .ToList();
 
+        _batchRun.Begin();
+        IsBatchPaused = false;
+        IsBatchComplete = false;
+        BatchProgressMaximum = pairs.Count;
+        BatchProgressValue = 0;
+        BatchStatusText = pairs.Count > 0 ? $"0/{pairs.Count}" : string.Empty;
         IsBusy = true;
         try
         {
             AppendLog(hasZona
-                ? $"Старт пакета (zona-кроп из {ZonaFolder})…"
+                ? $"Старт пакета (технология Zona, папка {ZonaFolder})…"
                 : "Старт пакета (reference-кроп)…");
+            AppendLog($"Вход: {inputRoot} (включая вложенные папки, файлов: {pairs.Count}).");
+
+            var formatDir = SaveAsWebP ? "webp" : "jpg";
             if (explicitOut is null)
             {
                 AppendLog(SaveAsWebP
-                    ? "Формат выхода: WebP (.webp) в подпапку «webp» рядом с каждым исходным файлом."
-                    : "Формат выхода: JPEG (.jpg) в подпапку «jpg» рядом с каждым исходным файлом.");
-                AppendLog("Папка выхода не задана — для каждого файла: <папка исходника>\\webp или \\jpg.");
+                    ? $"Формат: WebP. Выход: {inputRoot}\\{formatDir}\\<подпапка>\\"
+                    : $"Формат: JPEG. Выход: {inputRoot}\\{formatDir}\\<подпапка>\\");
             }
             else
             {
-                AppendLog(SaveAsWebP ? "Формат выхода: WebP (.webp)." : "Формат выхода: JPEG (.jpg).");
-                AppendLog($"Папка выхода: {explicitOut}");
+                AppendLog(SaveAsWebP ? "Формат: WebP." : "Формат: JPEG.");
+                AppendLog($"Выход: {explicitOut}\\<подпапка>\\ (структура как во входе).");
             }
+
             var edge = (int)Math.Clamp(Math.Round(AnalysisMaxEdge), 256, 8192);
             var zona = hasZona ? ZonaFolder : null;
-
             var color = GetEffectiveColorFor(SelectedProduct);
             var applyColor = ApplyColorCorrection;
             var webp = SaveAsWebP;
 
-            await Task.Run(() =>
+            var result = await Task.Run(() =>
             {
-                _batch.RunMappings(pairs, explicitOut, edge, AppendLog, CancellationToken.None, zona, color, applyColor, webp);
-            });
+                return _batch.RunMappings(
+                    pairs,
+                    inputRoot,
+                    explicitOut,
+                    edge,
+                    (msg, kind) => AppendLog(msg, kind),
+                    _batchRun,
+                    ReportBatchProgress,
+                    zona,
+                    color,
+                    applyColor,
+                    webp);
+            }, _batchRun.Token);
+
+            if (!result.Cancelled)
+            {
+                IsBatchComplete = true;
+                BatchProgressValue = result.Total;
+                BatchProgressMaximum = Math.Max(1, result.Total);
+                BatchStatusText = $"Готово {result.Total}/{result.Total}";
+                var elapsed = FormatBatchElapsed(result.ActiveElapsed);
+                var donePhrase = ZonaMessages.NextDone();
+                AppendLog(donePhrase, LogLineKind.Zona, fromZona: true);
+                var summary =
+                    $"✓ Успешно: {result.Succeeded}, ошибок: {result.Errors}, всего: {result.Total}. Время: {elapsed}.";
+                AppendLog(summary, LogLineKind.Done);
+                NotifyTelegram(
+                    $"✅ ZONA — пакет готов\n{donePhrase}\n\n{summary}\nПрофиль: {SelectedProduct.DisplayName}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            /* отмена — сообщение в журнале и Telegram от CancelBatch */
         }
         catch (Exception ex)
         {
-            AppendLog($"Сбой: {ex.Message}");
+            var errPhrase = ZonaMessages.NextError();
+            AppendLog(errPhrase, LogLineKind.Error, fromZona: true);
+            AppendLog($"⚠ {ex.Message}", LogLineKind.Error);
+            NotifyTelegram($"❌ ZONA — ошибка\n{errPhrase}\n\n{ex.Message}");
         }
         finally
         {
             IsBusy = false;
+            IsBatchPaused = false;
+            NotifyBatchCommandsChanged();
         }
     }
 
-    private void AppendLog(string message)
+    private void ReportBatchProgress(int completed, int total, int succeeded, int errors)
     {
+        void Apply()
+        {
+            if (IsBatchPaused)
+                return;
+
+            BatchProgressMaximum = Math.Max(1, total);
+            BatchProgressValue = completed;
+            BatchStatusText = total > 0 ? $"{completed}/{total}" : string.Empty;
+        }
+
         if (_dispatcher.CheckAccess())
-            LogLines.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+            Apply();
         else
-            _ = _dispatcher.BeginInvoke(() => LogLines.Add($"[{DateTime.Now:HH:mm:ss}] {message}"));
+            _dispatcher.BeginInvoke(Apply);
     }
+
+    private void UpdateBatchStatusText()
+    {
+        if (!IsBusy)
+            return;
+
+        if (IsBatchPaused)
+        {
+            BatchStatusText = "На паузе";
+            return;
+        }
+
+        var total = (int)BatchProgressMaximum;
+        var done = (int)Math.Min(BatchProgressValue, total);
+        BatchStatusText = total > 0 ? $"{done}/{total}" : string.Empty;
+    }
+
+    private static string FormatBatchElapsed(TimeSpan elapsed)
+    {
+        if (elapsed.TotalHours >= 1)
+            return $"{(int)elapsed.TotalHours}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
+        return $"{elapsed.Minutes}:{elapsed.Seconds:D2}";
+    }
+
+    private void AppendLog(string message, LogLineKind kind = LogLineKind.Normal, bool fromZona = false)
+    {
+        var line = new LogLineViewModel($"[{DateTime.Now:HH:mm:ss}] {message}", kind, fromZona);
+        if (_dispatcher.CheckAccess())
+            LogLines.Add(line);
+        else
+            _ = _dispatcher.BeginInvoke(() => LogLines.Add(line));
+    }
+
+    private static void NotifyTelegram(string text) =>
+        ZonaTelegramNotifyService.TrySendFireAndForget(text);
 
     private void SchedulePreviewRefresh()
     {
@@ -933,8 +1459,8 @@ public partial class MainViewModel : ObservableObject
 
                     b = CropPreviewBitmapFactory.LoadThumbnail(row.InputPath, thumb);
 
-                    a = zonaPath is not null
-                        ? CropPreviewBitmapFactory.LoadZonaCroppedPreview(row.InputPath, zonaPath, thumb, color, applyColor)
+                    a = zonaPath is not null && refPath is not null
+                        ? CropPreviewBitmapFactory.LoadZonaCroppedPreview(row.InputPath, zonaPath, refPath, edge, thumb, color, applyColor)
                         : (refPath is not null
                             ? CropPreviewBitmapFactory.LoadCroppedPreview(row.InputPath, refPath, edge, thumb, color, applyColor)
                             : null);

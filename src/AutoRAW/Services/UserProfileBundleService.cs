@@ -6,7 +6,7 @@ namespace AutoRAW.Services;
 
 /// <summary>
 /// Профиль как папка под <see cref="AppPaths.UserProfilesRoot"/>:
-/// <c>reference</c>, <c>zona</c>, <c>setting</c> (XMP), <c>profile.json</c>.
+/// reference\имя\, zona\имя\ (технология «Zona»), setting (XMP), profile.json.
 /// </summary>
 public static class UserProfileBundleService
 {
@@ -59,15 +59,19 @@ public static class UserProfileBundleService
         }
     }
 
-    /// <summary>Записывает профиль: копирует reference/zona, XMP в setting, манифест.</summary>
+    /// <summary>
+    /// Записывает профиль: копирует reference и zona (Zona) в подкаталоги с именем профиля,
+    /// XMP в setting, манифест. Структура: reference\имя\, zona\имя\ (как reference\Sneakers у встроенного профиля).
+    /// </summary>
     public static ProductProfile WriteBundle(string displayName, string sourceReferenceDir, string sourceZonaDir, ColorCorrectionSettings color)
     {
         EnsureDirectories();
         var bundle = GetBundlePath(displayName);
         Directory.CreateDirectory(bundle);
 
-        var refDest = Path.Combine(bundle, "reference");
-        var zonaDest = Path.Combine(bundle, "zona");
+        var slug = SanitizeFolderName(displayName);
+        var refDest = Path.Combine(bundle, "reference", slug);
+        var zonaDest = Path.Combine(bundle, "zona", slug);
         var settingDest = Path.Combine(bundle, "setting");
 
         if (Directory.Exists(refDest))
@@ -113,15 +117,34 @@ public static class UserProfileBundleService
     {
         try
         {
-            var refDir = Path.Combine(bundleDirectory, "reference");
-            var zonaDir = Path.Combine(bundleDirectory, "zona");
             var manifestPath = Path.Combine(bundleDirectory, "profile.json");
-            if (!Directory.Exists(refDir) || !Directory.Exists(zonaDir) || !File.Exists(manifestPath))
+            if (!File.Exists(manifestPath))
                 return null;
 
             var json = File.ReadAllText(manifestPath);
             var m = JsonSerializer.Deserialize<Manifest>(json, JsonOptions);
             if (m is null || string.IsNullOrWhiteSpace(m.DisplayName))
+                return null;
+
+            var slug = SanitizeFolderName(m.DisplayName);
+            var refDirNew = Path.Combine(bundleDirectory, "reference", slug);
+            var zonaDirNew = Path.Combine(bundleDirectory, "zona", slug);
+            var refDirLegacy = Path.Combine(bundleDirectory, "reference");
+            var zonaDirLegacy = Path.Combine(bundleDirectory, "zona");
+
+            string refDir;
+            string zonaDir;
+            if (Directory.Exists(refDirNew) && Directory.Exists(zonaDirNew))
+            {
+                refDir = refDirNew;
+                zonaDir = zonaDirNew;
+            }
+            else if (Directory.Exists(refDirLegacy) && Directory.Exists(zonaDirLegacy))
+            {
+                refDir = refDirLegacy;
+                zonaDir = zonaDirLegacy;
+            }
+            else
                 return null;
 
             return new ProductProfile(

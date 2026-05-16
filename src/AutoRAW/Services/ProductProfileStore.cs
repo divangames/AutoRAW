@@ -27,4 +27,24 @@ public static class ProductProfileStore
         UserProfileBundleService.MigrateLegacyAppDataProductsJsonIfNeeded();
         return UserProfileBundleService.LoadAllBundles();
     }
+
+    /// <summary>
+    /// Профили из комплекта приложения (<c>profiles\*\profile.json</c>) и при необходимости запасной экземпляр «Кроссовки» из кода.
+    /// </summary>
+    public static IReadOnlyList<ProductProfile> LoadBuiltInMenuProfiles()
+    {
+        var shipped = ShippedProfileCatalog.LoadAll();
+        var hasSneakersSlot = shipped.Any(AppPaths.ReferencesBuiltInSneakersFolders);
+        var sneakersDirsExist =
+            Directory.Exists(AppPaths.BuiltInSneakersReferenceFolder)
+            && Directory.Exists(AppPaths.BuiltInSneakersZonaFolder);
+
+        if (hasSneakersSlot || !sneakersDirsExist)
+            return shipped;
+
+        var withFallback = new List<ProductProfile>(shipped.Count + 1) { ProductProfile.BuiltInSneakers };
+        foreach (var p in shipped)
+            withFallback.Add(p);
+        return withFallback;
+    }
 }

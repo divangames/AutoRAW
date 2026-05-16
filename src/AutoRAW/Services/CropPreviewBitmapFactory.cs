@@ -45,6 +45,8 @@ public static class CropPreviewBitmapFactory
 
             using var cropped = (MagickImage)full.Clone();
             cropped.Crop(new MagickGeometry { X = x, Y = y, Width = (uint)w, Height = (uint)h });
+            cropped.ResetPage();
+            AutoCropComputation.ResizeToReferenceOutputSize(cropped, reference);
             if (colorCorrection is not null)
                 ColorCorrectionService.ApplyIfEnabled(cropped, colorCorrection, applyColorCorrection);
             FitLongEdge(cropped, displayMaxEdge);
@@ -56,10 +58,12 @@ public static class CropPreviewBitmapFactory
         }
     }
 
-    /// <summary>Превью кропа по zona-изображению (красный прямоугольник).</summary>
+    /// <summary>Превью кропа по технологии «Zona» (красный маркёр на парном изображении).</summary>
     public static BitmapSource? LoadZonaCroppedPreview(
         string inputPath,
         string zonaPath,
+        string referencePath,
+        int analysisMaxEdge,
         int displayMaxEdge,
         ColorCorrectionSettings? colorCorrection = null,
         bool applyColorCorrection = false)
@@ -70,8 +74,11 @@ public static class CropPreviewBitmapFactory
             if (zona is null)
                 return null;
 
+            var reference = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
+
             using var full = RasterImageLoader.Load(inputPath);
             using var cropped = ZonaCropService.Crop(full, zona.Value);
+            AutoCropComputation.ResizeToReferenceOutputSize(cropped, reference);
             if (colorCorrection is not null)
                 ColorCorrectionService.ApplyIfEnabled(cropped, colorCorrection, applyColorCorrection);
             FitLongEdge(cropped, displayMaxEdge);

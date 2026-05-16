@@ -7,7 +7,9 @@
         Height="660"
         MinWidth="720"
         MinHeight="520"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Background="{DynamicResource Theme.WindowBg}"
+        TextElement.Foreground="{DynamicResource Theme.TextPrimary}">
   <Grid Margin="16">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
@@ -19,7 +21,7 @@
     <TextBlock Grid.Row="0"
                TextWrapping="Wrap"
                Margin="0,0,0,12"
-               Foreground="#444"
+               Foreground="{DynamicResource Theme.TextMuted}"
                Text="Загрузите .xmp-пресет (Lightroom / Camera Raw). Превью обновляется автоматически после выбора файла." />
 
     <!-- Превью До / После -->
@@ -30,7 +32,7 @@
       </Grid.ColumnDefinitions>
       <StackPanel Grid.Column="0" Margin="0,0,8,0">
         <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="Исходник (до)" />
-        <Border BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA" MinHeight="200">
+        <Border BorderBrush="{DynamicResource Theme.CardBorder}" BorderThickness="1" Background="{DynamicResource Theme.PreviewSurface}" MinHeight="200">
           <Image x:Name="BeforeImage"
                  MaxHeight="340"
                  Stretch="Uniform"
@@ -39,7 +41,7 @@
       </StackPanel>
       <StackPanel Grid.Column="1" Margin="8,0,0,0">
         <TextBlock FontWeight="SemiBold" Margin="0,0,0,6" Text="После настроек" />
-        <Border BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA" MinHeight="200">
+        <Border BorderBrush="{DynamicResource Theme.CardBorder}" BorderThickness="1" Background="{DynamicResource Theme.PreviewSurface}" MinHeight="200">
           <Image x:Name="AfterImage"
                  MaxHeight="340"
                  Stretch="Uniform"
@@ -63,7 +65,7 @@
                    Margin="0,0,8,0"
                    IsReadOnly="True"
                    VerticalContentAlignment="Center"
-                   Background="#F5F5F5"
+                   Background="{DynamicResource Theme.FieldReadonlyBg}"
                    Text="(файл не выбран)" />
           <Button Grid.Column="1"
                   Padding="12,6"
@@ -77,13 +79,13 @@
         </Grid>
 
         <!-- Сводка параметров из XMP -->
-        <Border Background="#F0F4FF" BorderBrush="#C8D8F0" BorderThickness="1"
+        <Border Background="{DynamicResource Theme.InfoPanelBg}" BorderBrush="{DynamicResource Theme.InfoPanelBorder}" BorderThickness="1"
                 CornerRadius="4" Padding="10,8">
           <StackPanel>
             <TextBlock x:Name="XmpSummaryBlock"
                        FontSize="12"
                        TextWrapping="Wrap"
-                       Foreground="#333"
+                       Foreground="{DynamicResource Theme.TextBody}"
                        Text="Параметры появятся после загрузки XMP-файла." />
           </StackPanel>
         </Border>

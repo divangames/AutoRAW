@@ -1,0 +1,172 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:models="clr-namespace:AutoRAW.Models"
+                    xmlns:conv="clr-namespace:AutoRAW.Converters"
+                    xmlns:emoji="clr-namespace:Emoji.Wpf;assembly=Emoji.Wpf">
+
+  <conv:ChatBubbleMaxWidthConverter x:Key="BubbleMaxWidth" />
+
+  <Style x:Key="LogCopyBtnStyle" TargetType="Button">
+    <Setter Property="Width" Value="36" />
+    <Setter Property="Height" Value="36" />
+    <Setter Property="MinWidth" Value="36" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="ToolTip" Value="Копировать" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="4">
+            <TextBlock Text="📋" FontSize="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ChatCopyHover}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--
+    Telegram incoming: [○ аватар]  ╭ текст ─────────────╮
+                                    ╰────────── 11:43 ─╯
+  -->
+  <DataTemplate x:Key="LogLineItemTemplate">
+    <Grid Margin="8,2,10,2" HorizontalAlignment="Stretch">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="48" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Аватар ZONA — круг, по нижнему краю пузыря -->
+      <Grid Grid.Column="0"
+            Width="42"
+            Height="42"
+            VerticalAlignment="Bottom"
+            Margin="0,0,6,1">
+        <Grid.Style>
+          <Style TargetType="Grid">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding FromZona}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Grid.Style>
+        <Image Width="38"
+               Height="38"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               Stretch="UniformToFill"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               Source="pack://application:,,,/Assets/ava_z.png">
+          <Image.Clip>
+            <EllipseGeometry Center="19,19" RadiusX="19" RadiusY="19" />
+          </Image.Clip>
+        </Image>
+      </Grid>
+
+      <Grid Grid.Column="1" HorizontalAlignment="Left">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Border x:Name="Bubble"
+                Grid.Column="0"
+                Padding="10,7,10,5"
+                HorizontalAlignment="Left"
+                BorderThickness="0"
+                SnapsToDevicePixels="True"
+                MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource BubbleMaxWidth}}">
+          <Border.Style>
+            <Style TargetType="Border">
+              <Setter Property="Background" Value="{DynamicResource Theme.BubbleNormal}" />
+              <Setter Property="CornerRadius" Value="12,12,12,12" />
+              <Style.Triggers>
+                <!-- Входящие от Zona — синий Telegram #2B5278, острый угол снизу-слева -->
+                <DataTrigger Binding="{Binding FromZona}" Value="True">
+                  <Setter Property="Background" Value="{DynamicResource Theme.BubbleZona}" />
+                  <Setter Property="CornerRadius" Value="12,12,12,4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:LogLineKind.Zona}">
+                  <Setter Property="Background" Value="{DynamicResource Theme.BubbleZona}" />
+                  <Setter Property="CornerRadius" Value="12,12,12,4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:LogLineKind.Done}">
+                  <Setter Property="Background" Value="{DynamicResource Theme.BubbleDone}" />
+                  <Setter Property="CornerRadius" Value="12,12,12,4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:LogLineKind.Error}">
+                  <Setter Property="Background" Value="{DynamicResource Theme.BubbleError}" />
+                  <Setter Property="CornerRadius" Value="12,12,12,4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:LogLineKind.Cancel}">
+                  <Setter Property="Background" Value="{DynamicResource Theme.BubbleError}" />
+                  <Setter Property="CornerRadius" Value="12,12,12,4" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="{x:Static models:LogLineKind.Pause}">
+                  <Setter Property="Background" Value="{DynamicResource Theme.BubblePause}" />
+                  <Setter Property="CornerRadius" Value="12,12,12,4" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+
+          <!-- Текст + время в правом нижнем углу (Telegram) -->
+          <Grid>
+            <emoji:TextBlock Text="{Binding Body}"
+                             FontFamily="Segoe UI"
+                             FontSize="14"
+                             LineHeight="20"
+                             Foreground="{DynamicResource Theme.ChatBubbleText}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,16" />
+            <TextBlock Text="{Binding TimeShort}"
+                       FontFamily="Segoe UI"
+                       FontSize="11"
+                       Foreground="{DynamicResource Theme.ChatBubbleTime}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Margin="8,0,2,1" />
+          </Grid>
+        </Border>
+
+        <Button Grid.Column="1"
+                x:Name="CopyBtn"
+                Command="{Binding CopyCommand}"
+                Margin="6,0,0,0"
+                VerticalAlignment="Center"
+                Opacity="0"
+                Style="{StaticResource LogCopyBtnStyle}" />
+      </Grid>
+
+      <Grid.Triggers>
+        <EventTrigger RoutedEvent="MouseEnter">
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="CopyBtn"
+                               Storyboard.TargetProperty="Opacity"
+                               To="1" Duration="0:0:0.1" />
+            </Storyboard>
+          </BeginStoryboard>
+        </EventTrigger>
+        <EventTrigger RoutedEvent="MouseLeave">
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetName="CopyBtn"
+                               Storyboard.TargetProperty="Opacity"
+                               To="0" Duration="0:0:0.15" />
+            </Storyboard>
+          </BeginStoryboard>
+        </EventTrigger>
+      </Grid.Triggers>
+    </Grid>
+  </DataTemplate>
+
+</ResourceDictionary>

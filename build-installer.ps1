@@ -5,7 +5,8 @@
 .DESCRIPTION
     1. dotnet publish -> dist\publish\ (win-x64, framework-dependent)
     2. Copy setting, reference, zona from repo root
-    3. Run ISCC.exe on installer\AutoRAW.iss
+    3. Read version from CHANGELOG.md (bat\Resolve-VersionFromChangelog.ps1) -> dist\changelog_version_for_installer.txt
+    4. Run ISCC.exe with /DMyAppVersion /DMyAppVerFull on installer\AutoRAW.iss
     Requires Inno Setup 6 (ISCC) on the developer machine.
 #>
 
@@ -15,13 +16,32 @@ $RepoRoot   = $PSScriptRoot
 $ProjFile   = Join-Path $RepoRoot "src\AutoRAW\AutoRAW.csproj"
 $PublishDir = Join-Path $RepoRoot "dist\publish"
 $IssFile    = Join-Path $RepoRoot "installer\AutoRAW.iss"
+$DistVerForInstaller = Join-Path $RepoRoot "dist\changelog_version_for_installer.txt"
 
-function Get-ProjectVersion {
-    $text = Get-Content -LiteralPath $ProjFile -Raw -Encoding UTF8
-    if ($text -match '<Version>\s*([^<]+)\s*</Version>') {
-        return $Matches[1].Trim()
+function Get-InstallerAppVersion {
+    $changelog = Join-Path $RepoRoot "CHANGELOG.md"
+    $resolve   = Join-Path $RepoRoot "bat\Resolve-VersionFromChangelog.ps1"
+    if (-not (Test-Path -LiteralPath $changelog)) {
+        throw "CHANGELOG.md not found at: $changelog"
     }
-    return "0.0.0.0"
+    if (-not (Test-Path -LiteralPath $resolve)) {
+        throw "Version resolve script not found: $resolve"
+    }
+    $outDir = Split-Path -Parent $DistVerForInstaller
+    if (-not (Test-Path -LiteralPath $outDir)) {
+        New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+    }
+    $psArgs = @(
+        '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', $resolve,
+        '-ChangelogPath', $changelog,
+        '-OutVersionFile', $DistVerForInstaller
+    )
+    & powershell.exe @psArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Resolve-VersionFromChangelog.ps1 failed, exit code $LASTEXITCODE"
+    }
+    return (Get-Content -LiteralPath $DistVerForInstaller -TotalCount 1 -Encoding UTF8).Trim()
 }
 
 function Find-IsccPath {
@@ -90,19 +110,19 @@ if (-not $iscc) {
     exit 2
 }
 
-$appVersion = Get-ProjectVersion
-Write-Host "  App version : $appVersion" -ForegroundColor DarkGray
+$appVersionShort = Get-InstallerAppVersion
+$appVersionFull = ([version]$appVersionShort).ToString()
+Write-Host "  App version : $appVersionShort ($appVersionFull)" -ForegroundColor DarkGray
 Write-Host "  ISCC        : $iscc" -ForegroundColor DarkGray
 
 Write-Host "[5/5] Compiling installer (bundled .NET SDK ~210 MB)..." -ForegroundColor Cyan
-& $iscc @("/DMyAppVersion=$appVersion", $IssFile)
+& $iscc @("/DMyAppVersion=$appVersionShort", "/DMyAppVerFull=$appVersionFull", $IssFile)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] ISCC failed, exit code $LASTEXITCODE." -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-$appVersion = Get-ProjectVersion
-$setupExe = Join-Path $RepoRoot "dist\AutoRAW-Setup-$appVersion-ru.exe"
+$setupExe = Join-Path $RepoRoot "dist\AutoRAW-Setup-$appVersionShort-ru.exe"
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green

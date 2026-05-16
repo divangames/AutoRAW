@@ -6,16 +6,16 @@
         Height="640"
         MinWidth="560"
         MinHeight="400"
-        Background="#F2F3F5">
+        Background="{DynamicResource Theme.WindowBg}">
   <DockPanel Margin="0">
     <Border DockPanel.Dock="Top"
-            Background="White"
-            BorderBrush="#D8DADC"
+            Background="{DynamicResource Theme.MenuBarBg}"
+            BorderBrush="{DynamicResource Theme.MenuBarBorder}"
             BorderThickness="0,0,0,1"
             Padding="12,10">
       <TextBlock x:Name="PathText"
                  FontSize="11"
-                 Foreground="#666"
+                 Foreground="{DynamicResource Theme.TextHint}"
                  TextWrapping="Wrap" />
     </Border>
     <WebBrowser x:Name="BodyBrowser" />

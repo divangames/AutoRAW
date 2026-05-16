@@ -5,20 +5,21 @@ namespace AutoRAW.Services;
 
 public sealed class AutoCropBatchService
 {
+    public delegate void BatchLogHandler(string message, LogLineKind kind = LogLineKind.Normal);
+
+    public delegate void BatchProgressHandler(int completed, int total, int succeeded, int errors);
+
     /// <summary>
-    /// Каждая пара: (inputPath, referencePath). Если zonaFolder задан и файл зоны существует —
-    /// кроп берётся напрямую из красного прямоугольника zona-изображения, референс игнорируется.
+    /// Если задана папка zona — кроп по технологии «Zona» (красный маркёр); иначе по референсу.
     /// </summary>
-    /// <param name="outputFolder">
-    /// Явная папка выхода для всех файлов; если null или пусто — для каждого входа:
-    /// <c>DirectoryName(input)\webp</c> или <c>DirectoryName(input)\jpg</c> в зависимости от <paramref name="saveAsWebP"/>.
-    /// </param>
-    public void RunMappings(
+    public BatchRunResult RunMappings(
         IReadOnlyList<(string inputPath, string referencePath)> pairs,
+        string inputRoot,
         string? outputFolder,
         int analysisMaxEdge,
-        Action<string> log,
-        CancellationToken cancellationToken,
+        BatchLogHandler log,
+        BatchRunController runControl,
+        BatchProgressHandler? onProgress = null,
         string? zonaFolder = null,
         ColorCorrectionSettings? colorCorrection = null,
         bool applyColorCorrection = false,
@@ -27,31 +28,56 @@ public sealed class AutoCropBatchService
         if (pairs.Count == 0)
         {
             log("Нет строк для обработки.");
-            return;
+            return new BatchRunResult(false, 0, 0, 0, TimeSpan.Zero);
         }
 
         var refCache = new Dictionary<string, AutoCropComputation.ReferenceMetrics>(StringComparer.OrdinalIgnoreCase);
-        log($"Заданий: {pairs.Count}");
+        var inputRootFull = Path.GetFullPath(inputRoot);
+        var total = pairs.Count;
+        var completed = 0;
+        var succeeded = 0;
+        var errors = 0;
+        var cancelled = false;
+
+        log($"Заданий: {total}");
+        onProgress?.Invoke(0, total, 0, 0);
 
         foreach (var (inputPath, referencePath) in pairs)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                runControl.WaitIfPausedOrCancelled();
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+                break;
+            }
 
-            var name = Path.GetFileName(inputPath);
-            var stem = Path.GetFileNameWithoutExtension(inputPath);
+            var rel = TryGetRelativeDisplayPath(inputRootFull, inputPath);
 
             try
             {
                 var zonaPath = zonaFolder is not null
-                    ? FindZonaFile(zonaFolder, stem)
+                    ? FindZonaFile(zonaFolder, inputRootFull, inputPath)
                     : null;
 
-                var outDir = ResolveOutputDirectory(outputFolder, inputPath, saveAsWebP);
+                var outDir = BatchOutputPathResolver.Resolve(inputRootFull, inputPath, outputFolder, saveAsWebP);
 
                 if (zonaPath is not null)
                 {
-                    log($"Zona-кроп: {name}");
-                    ProcessWithZona(inputPath, outDir, zonaPath, log, colorCorrection, applyColorCorrection, saveAsWebP);
+                    if (!refCache.TryGetValue(referencePath, out var zonaRefMetrics))
+                    {
+                        runControl.WaitIfPausedOrCancelled();
+                        zonaRefMetrics = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
+                        refCache[referencePath] = zonaRefMetrics;
+                    }
+
+                    log($"Технология Zona: {rel}");
+                    if (ProcessWithZona(inputPath, outDir, zonaPath, zonaRefMetrics, runControl, log, colorCorrection, applyColorCorrection, saveAsWebP))
+                        succeeded++;
+                    else
+                        errors++;
                 }
                 else
                 {
@@ -59,71 +85,130 @@ public sealed class AutoCropBatchService
 
                     if (string.Equals(inputPath, referencePath, StringComparison.OrdinalIgnoreCase))
                     {
-                        log($"Пропуск (файл совпадает с референсом): {name}");
-                        continue;
+                        log($"Пропуск (файл совпадает с референсом): {rel}");
                     }
-
-                    if (!refCache.TryGetValue(referencePath, out var metrics))
+                    else
                     {
-                        metrics = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
-                        refCache[referencePath] = metrics;
-                        log($"Референс (анализ): {refName}");
-                    }
+                        if (!refCache.TryGetValue(referencePath, out var metrics))
+                        {
+                            runControl.WaitIfPausedOrCancelled();
+                            metrics = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
+                            refCache[referencePath] = metrics;
+                            log($"Референс (анализ): {refName}");
+                        }
 
-                    ProcessWithReference(inputPath, outDir, metrics, analysisMaxEdge, colorCorrection, applyColorCorrection, saveAsWebP);
-                    log($"OK: {name}  (референс: {refName})");
+                        ProcessWithReference(inputPath, outDir, metrics, runControl, analysisMaxEdge, colorCorrection, applyColorCorrection, saveAsWebP);
+                        log($"OK: {rel}  (референс: {refName})");
+                        succeeded++;
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+                break;
             }
             catch (Exception ex)
             {
-                log($"Ошибка «{name}»: {ex.Message}");
+                errors++;
+                log($"Ошибка «{rel}»: {ex.Message}", LogLineKind.Error);
+            }
+            finally
+            {
+                completed++;
+                onProgress?.Invoke(completed, total, succeeded, errors);
             }
         }
 
-        log("Готово.");
+        if (cancelled)
+            log("Кадрирование отменено.", LogLineKind.Cancel);
+
+        return new BatchRunResult(cancelled, total, succeeded, errors, runControl.ActiveElapsed);
     }
 
-    private static string ResolveOutputDirectory(string? outputFolderRoot, string inputPath, bool saveAsWebP)
+    private static string TryGetRelativeDisplayPath(string inputRootFull, string inputPath)
     {
-        if (!string.IsNullOrWhiteSpace(outputFolderRoot))
-            return Path.GetFullPath(outputFolderRoot.Trim());
+        try
+        {
+            var rel = Path.GetRelativePath(inputRootFull, Path.GetFullPath(inputPath));
+            return rel == "." ? Path.GetFileName(inputPath) : rel;
+        }
+        catch
+        {
+            return Path.GetFileName(inputPath);
+        }
+    }
 
+    private static string? FindZonaFile(string zonaFolder, string inputRootFull, string inputPath)
+    {
+        var stem = Path.GetFileNameWithoutExtension(inputPath);
         var inputDir = Path.GetDirectoryName(Path.GetFullPath(inputPath));
-        if (string.IsNullOrEmpty(inputDir))
-            throw new InvalidOperationException($"Не удалось определить каталог для входного файла: {inputPath}");
+        if (inputDir is not null)
+        {
+            var relDir = Path.GetRelativePath(inputRootFull, inputDir);
+            if (relDir is not "." and not "")
+            {
+                var nestedZona = Path.Combine(zonaFolder, relDir);
+                if (Directory.Exists(nestedZona))
+                {
+                    var inNested = FindZonaFileInDirectory(nestedZona, stem);
+                    if (inNested is not null)
+                        return inNested;
+                }
+            }
+        }
 
-        var sub = saveAsWebP ? "webp" : "jpg";
-        return Path.Combine(inputDir, sub);
-    }
+        var inRoot = FindZonaFileInDirectory(zonaFolder, stem);
+        if (inRoot is not null)
+            return inRoot;
 
-    private static string? FindZonaFile(string zonaFolder, string stem)
-    {
-        foreach (var f in Directory.EnumerateFiles(zonaFolder))
+        foreach (var f in Directory.EnumerateFiles(zonaFolder, "*", SearchOption.AllDirectories))
         {
             if (string.Equals(Path.GetFileNameWithoutExtension(f), stem, StringComparison.OrdinalIgnoreCase)
                 && ImageFileCatalog.IsImageFile(f))
                 return f;
         }
+
         return null;
     }
 
-    private static void ProcessWithZona(
+    private static string? FindZonaFileInDirectory(string directory, string stem)
+    {
+        if (!Directory.Exists(directory))
+            return null;
+
+        foreach (var f in Directory.EnumerateFiles(directory))
+        {
+            if (string.Equals(Path.GetFileNameWithoutExtension(f), stem, StringComparison.OrdinalIgnoreCase)
+                && ImageFileCatalog.IsImageFile(f))
+                return f;
+        }
+
+        return null;
+    }
+
+    private static bool ProcessWithZona(
         string inputPath,
         string outputFolder,
         string zonaPath,
-        Action<string> log,
+        AutoCropComputation.ReferenceMetrics reference,
+        BatchRunController runControl,
+        BatchLogHandler log,
         ColorCorrectionSettings? colorCorrection,
         bool applyColorCorrection,
         bool saveAsWebP)
     {
+        runControl.WaitIfPausedOrCancelled();
         var zona = ZonaCropService.Detect(zonaPath);
         if (zona is null)
         {
-            log($"  Красный прямоугольник не найден в zona, пропуск: {Path.GetFileName(zonaPath)}");
-            return;
+            log($"  Маркёр Zona: красная зона не найдена, пропуск: {Path.GetFileName(zonaPath)}", LogLineKind.Error);
+            return false;
         }
 
+        runControl.WaitIfPausedOrCancelled();
         using var full = RasterImageLoader.Load(inputPath);
+        runControl.WaitIfPausedOrCancelled();
 
         Directory.CreateDirectory(outputFolder);
 
@@ -131,30 +216,40 @@ public sealed class AutoCropBatchService
         var outPath = Path.Combine(outputFolder, outName);
 
         using var cropped = ZonaCropService.Crop(full, zona.Value);
+        runControl.WaitIfPausedOrCancelled();
+        AutoCropComputation.ResizeToReferenceOutputSize(cropped, reference);
         if (colorCorrection is not null)
             ColorCorrectionService.ApplyIfEnabled(cropped, colorCorrection, applyColorCorrection);
+        runControl.WaitIfPausedOrCancelled();
         WriteCroppedFile(cropped, outPath, saveAsWebP);
 
-        log($"  OK zona: {Path.GetFileName(inputPath)} → угол={zona.Value.RectInZonaCoords.Angle:F1}°, rotated={zona.Value.IsRotated}, цвет={(applyColorCorrection ? "да" : "нет")}");
+        log($"  OK Zona: {Path.GetFileName(inputPath)} → угол={zona.Value.RectInZonaCoords.Angle:F1}°, rotated={zona.Value.IsRotated}, цвет={(applyColorCorrection ? "да" : "нет")}");
+        return true;
     }
 
     private static void ProcessWithReference(
         string inputPath,
         string outputFolder,
         AutoCropComputation.ReferenceMetrics reference,
+        BatchRunController runControl,
         int analysisMaxEdge,
         ColorCorrectionSettings? colorCorrection,
         bool applyColorCorrection,
         bool saveAsWebP)
     {
+        runControl.WaitIfPausedOrCancelled();
         using var full = RasterImageLoader.Load(inputPath);
+        runControl.WaitIfPausedOrCancelled();
         var target = AutoCropComputation.AnalyzeTarget(full, analysisMaxEdge);
+        runControl.WaitIfPausedOrCancelled();
         var crop = AutoCropComputation.ComputeCropBox(reference, target);
         var (x, y, w, h) = CropGeometryService.ToIntegers(crop, (int)full.Width, (int)full.Height);
 
         using var cropped = (MagickImage)full.Clone();
         cropped.Crop(new MagickGeometry { X = x, Y = y, Width = (uint)w, Height = (uint)h });
         cropped.ResetPage();
+        AutoCropComputation.ResizeToReferenceOutputSize(cropped, reference);
+        runControl.WaitIfPausedOrCancelled();
 
         if (colorCorrection is not null)
             ColorCorrectionService.ApplyIfEnabled(cropped, colorCorrection, applyColorCorrection);
@@ -163,6 +258,7 @@ public sealed class AutoCropBatchService
 
         var outName = Path.GetFileNameWithoutExtension(inputPath) + (saveAsWebP ? ".webp" : ".jpg");
         var outPath = Path.Combine(outputFolder, outName);
+        runControl.WaitIfPausedOrCancelled();
         WriteCroppedFile(cropped, outPath, saveAsWebP);
     }
 

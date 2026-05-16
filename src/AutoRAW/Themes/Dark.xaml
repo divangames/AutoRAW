@@ -1,0 +1,123 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Тёмная тема (ТЗ): BgPrimary #1E1E1E, BgSecondary #252526, BgPanel #2D2D30,
+    BgInput #3C3C3C, Accent #0078D4, Text #F0F0F0 / #A0A0A0, Border #404040.
+    Ключи Theme.* — по всему приложению; Bg* — канон ТЗ для новых экранов.
+  -->
+
+  <SolidColorBrush x:Key="BgPrimary" Color="#1E1E1E" />
+  <SolidColorBrush x:Key="BgSecondary" Color="#252526" />
+  <SolidColorBrush x:Key="BgPanel" Color="#2D2D30" />
+  <SolidColorBrush x:Key="BgInput" Color="#3C3C3C" />
+  <SolidColorBrush x:Key="AccentBlue" Color="#0078D4" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F0F0F0" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A0A0A0" />
+  <SolidColorBrush x:Key="BorderBrushKey" Color="#404040" />
+  <SolidColorBrush x:Key="BorderActive" Color="#0078D4" />
+
+  <SolidColorBrush x:Key="Theme.WindowBg" Color="#1E1E1E" />
+  <SolidColorBrush x:Key="Theme.MenuBarBg" Color="#252526" />
+  <SolidColorBrush x:Key="Theme.MenuBarBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.MenuPopupBg" Color="#252526" />
+  <SolidColorBrush x:Key="Theme.MenuPopupBorder" Color="#404040" />
+
+  <SolidColorBrush x:Key="Theme.CardBg" Color="#2D2D30" />
+  <SolidColorBrush x:Key="Theme.CardBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.TextPrimary" Color="#F0F0F0" />
+  <SolidColorBrush x:Key="Theme.TextSecondary" Color="#A0A0A0" />
+  <SolidColorBrush x:Key="Theme.TextBody" Color="#E8E8E8" />
+  <SolidColorBrush x:Key="Theme.TextMuted" Color="#A0A0A0" />
+  <SolidColorBrush x:Key="Theme.TextSubtle" Color="#909090" />
+  <SolidColorBrush x:Key="Theme.TextHint" Color="#808080" />
+
+  <SolidColorBrush x:Key="Theme.PreviewSurface" Color="#1E1E1E" />
+  <!-- Чат Zona — палитра Telegram dark -->
+  <SolidColorBrush x:Key="Theme.LogSurface" Color="#17212B" />
+  <SolidColorBrush x:Key="Theme.LogItemHover" Color="#1C2836" />
+  <SolidColorBrush x:Key="Theme.ChatBubbleText" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Theme.ChatBubbleTime" Color="#7EB6E0" />
+  <SolidColorBrush x:Key="Theme.ChatCopyHover" Color="#243447" />
+
+  <!-- Входящие / Zona — #2B5278; системные — чуть темнее; статусы — лёгкий оттенок -->
+  <SolidColorBrush x:Key="Theme.BubbleNormal" Color="#182533" />
+  <SolidColorBrush x:Key="Theme.BubbleBorderNormal" Color="#182533" />
+  <SolidColorBrush x:Key="Theme.BubbleZona" Color="#2B5278" />
+  <SolidColorBrush x:Key="Theme.BubbleBorderZona" Color="#2B5278" />
+  <SolidColorBrush x:Key="Theme.BubbleError" Color="#5C3038" />
+  <SolidColorBrush x:Key="Theme.BubbleBorderError" Color="#5C3038" />
+  <SolidColorBrush x:Key="Theme.BubblePause" Color="#4A4420" />
+  <SolidColorBrush x:Key="Theme.BubbleBorderPause" Color="#4A4420" />
+  <SolidColorBrush x:Key="Theme.BubbleDone" Color="#1F4A38" />
+  <SolidColorBrush x:Key="Theme.BubbleBorderDone" Color="#1F4A38" />
+  <SolidColorBrush x:Key="Theme.BubbleTextError" Color="#E8ECEC" />
+  <SolidColorBrush x:Key="Theme.BubbleTextPause" Color="#E8ECEC" />
+  <SolidColorBrush x:Key="Theme.BubbleTextDone" Color="#E8ECEC" />
+  <SolidColorBrush x:Key="Theme.ListSurface" Color="#2D2D30" />
+  <SolidColorBrush x:Key="Theme.ListItemHover" Color="#3C3C3C" />
+  <SolidColorBrush x:Key="Theme.ListItemSelected" Color="#264F78" />
+
+  <SolidColorBrush x:Key="Theme.Accent" Color="#0078D4" />
+  <SolidColorBrush x:Key="Theme.AccentHover" Color="#1A86E0" />
+  <SolidColorBrush x:Key="Theme.AccentPressed" Color="#006CBE" />
+  <SolidColorBrush x:Key="Theme.ButtonSecondaryBg" Color="#3C3C3C" />
+  <SolidColorBrush x:Key="Theme.ButtonSecondaryBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.ButtonDisabledBg" Color="#2D2D30" />
+  <SolidColorBrush x:Key="Theme.ButtonDisabledFg" Color="#707070" />
+  <SolidColorBrush x:Key="Theme.ButtonDisabledBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.ProgressTrack" Color="#3C3C3C" />
+
+  <SolidColorBrush x:Key="Theme.SliderTrackBg" Color="#3C3C3C" />
+  <SolidColorBrush x:Key="Theme.SliderThumb" Color="#0078D4" />
+  <SolidColorBrush x:Key="Theme.SliderThumbHover" Color="#1A86E0" />
+
+  <SolidColorBrush x:Key="Theme.ScrollBarTrackBg" Color="#1E1E1E" />
+  <SolidColorBrush x:Key="Theme.ScrollBarThumb" Color="#686868" />
+  <SolidColorBrush x:Key="Theme.ScrollBarThumbHover" Color="#9E9E9E" />
+  <SolidColorBrush x:Key="Theme.ScrollBarThumbPressed" Color="#0078D4" />
+
+  <SolidColorBrush x:Key="Theme.DialogBg" Color="#252526" />
+  <SolidColorBrush x:Key="Theme.DialogBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.Hyperlink" Color="#4DA3FF" />
+  <SolidColorBrush x:Key="Theme.InfoPanelBg" Color="#2A3F5C" />
+  <SolidColorBrush x:Key="Theme.InfoPanelBorder" Color="#0078D4" />
+  <SolidColorBrush x:Key="Theme.FieldReadonlyBg" Color="#2D2D30" />
+  <SolidColorBrush x:Key="Theme.InputBackground" Color="#3C3C3C" />
+  <SolidColorBrush x:Key="Theme.InputBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.BorderActive" Color="#0078D4" />
+
+  <SolidColorBrush x:Key="Theme.GithubTitle" Color="#F0F0F0" />
+  <SolidColorBrush x:Key="Theme.GithubMuted" Color="#A0A0A0" />
+  <SolidColorBrush x:Key="Theme.GithubSection" Color="#E8E8E8" />
+  <SolidColorBrush x:Key="Theme.GithubPaneBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.GithubPaneBg" Color="#1E1E1E" />
+  <SolidColorBrush x:Key="Theme.AlphaChromeBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.ComboBoxBackground" Color="#3C3C3C" />
+  <SolidColorBrush x:Key="Theme.ListBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.GroupBoxBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.GroupBoxBg" Color="#2D2D30" />
+  <SolidColorBrush x:Key="Theme.DialogChromeBorder" Color="#404040" />
+  <SolidColorBrush x:Key="Theme.DialogChromeBg" Color="#2D2D30" />
+
+  <Style TargetType="TextBox">
+    <Setter Property="Background" Value="{StaticResource Theme.InputBackground}" />
+    <Setter Property="Foreground" Value="{StaticResource Theme.TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Theme.InputBorder}" />
+    <Setter Property="CaretBrush" Value="{StaticResource Theme.TextPrimary}" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Style.Triggers>
+      <Trigger Property="IsKeyboardFocused" Value="True">
+        <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderActive}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style TargetType="ComboBox">
+    <Setter Property="Background" Value="{StaticResource Theme.ComboBoxBackground}" />
+    <Setter Property="Foreground" Value="{StaticResource Theme.TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Theme.InputBorder}" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+</ResourceDictionary>
