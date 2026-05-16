@@ -794,7 +794,7 @@ public partial class MainViewModel : ObservableObject
         {
             offer = manual
                 ? await GitHubUpdateService.TryGetLatestOfferAsync().ConfigureAwait(false)
-                : await GitHubUpdateService.TryGetLatestOfferNewerThanAsync(AppMetadata.AssemblyVersion).ConfigureAwait(false);
+                : await GitHubUpdateService.TryGetLatestOfferNewerThanAsync(AppMetadata.AppVersion).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -833,12 +833,12 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            var cur = AppMetadata.AssemblyVersion;
+            var cur = AppMetadata.AppVersion;
             if (offer.Version <= cur)
             {
                 if (manual)
                 {
-                    var vUi = AppMetadata.FormatVersionUi(cur);
+                    var vUi = cur.ToString();
                     System.Windows.MessageBox.Show(
                         $"У вас установлена последняя доступная версия ({vUi}).",
                         "Проверка обновления",

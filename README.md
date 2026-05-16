@@ -26,7 +26,7 @@
 - **Экспорт WebP или JPEG** с запоминанием выбора.
 - **Обновления с GitHub** — **Справка → Проверить обновление** и напоминание при старте, если на [Releases](https://github.com/divangames/AutoRAW/releases) есть более новая версия (нужен **`AutoRAW-Setup-*-ru.exe`** во вложениях релиза).
 
-Актуальный список изменений — в **[CHANGELOG.md](CHANGELOG.md)** (версия приложения совпадает с **верхней** записью `## [x.y.z]`).
+Актуальный список изменений — в **[CHANGELOG.md](CHANGELOG.md)**. Версия в программе — **пятикомпонентная** (`0.7.6.0.0`): смысл позиций и правила записи описаны в начале changelog; в UI и в имени установщика используются все пять чисел, в манифесте Windows — первые четыре.
 
 ---
 
@@ -74,14 +74,14 @@
 
 ## Установщик
 
-Скрипт **`build-installer.ps1`** публикует приложение и собирает **Inno Setup** (`installer\AutoRAW.iss`). Номер версии берётся из **верхней** записи **`CHANGELOG.md`** (скрипт `bat\Resolve-VersionFromChangelog.ps1`) и передаётся в ISCC как `/DMyAppVersion` и `/DMyAppVerFull`. Результат: `dist\AutoRAW-Setup-<версия>-ru.exe` (папка `dist/` в git не входит).
+Скрипт **`build-installer.ps1`** публикует приложение и собирает **Inno Setup** (`installer\AutoRAW.iss`). Версия читается из **верхней** строки **`CHANGELOG.md`** (`## [a.b.c.d.e]`, допускается 1…5 чисел — недостающие справа нули). Скрипт **`bat\Resolve-VersionFromChangelog.ps1`** пишет: **полная строка** в `MyAppVersion` (тексты мастера и имя `AutoRAW-Setup-…-ru.exe`) и **первые четыре компонента** в `MyAppVerFull` (поле VersionInfo). Результат: `dist\AutoRAW-Setup-0.7.6.0.0-ru.exe` (папка `dist/` в git не входит).
 
 ---
 
 ## Релизы на GitHub
 
-- Версия в **`CHANGELOG.md`** и в сборке — одна и та же (MSBuild `ResolveVersionFromChangelog`).
-- Публикация: тег вида **`v0.7.6`**, в описание — «что нового»; во вложения — **`AutoRAW-Setup-0.7.6-ru.exe`** (имя: префикс `AutoRAW-Setup-`, суффикс `-ru.exe`).
+- Версия в **`CHANGELOG.md`**, в приложении и в имени установщика — **одна пятизначная** (см. таблицу в changelog); тег релиза: **`v0.7.6.0.0`**.
+- Во вложения — **`AutoRAW-Setup-0.7.6.0.0-ru.exe`** (префикс `AutoRAW-Setup-`, суффикс `-ru.exe`).
 
 ---
 

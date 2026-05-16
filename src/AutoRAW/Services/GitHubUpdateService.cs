@@ -7,7 +7,7 @@ namespace AutoRAW.Services;
 
 /// <summary>Последнее опубликованное обновление и установщик <c>AutoRAW-Setup-*-ru.exe</c> из вложений.</summary>
 public sealed record GitHubReleaseOffer(
-    Version Version,
+    ProductVersion Version,
     string TagLabel,
     string ReleaseTitle,
     string BodyMarkdown,
@@ -28,13 +28,13 @@ public static class GitHubUpdateService
     private static HttpClient CreateClient()
     {
         var c = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        c.DefaultRequestHeaders.UserAgent.ParseAdd($"AutoRAW/{AppMetadata.AssemblyVersion}");
+        c.DefaultRequestHeaders.UserAgent.ParseAdd($"AutoRAW/{AppMetadata.DisplayVersion}");
         c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         return c;
     }
 
     /// <summary>Сравнение с локальной сборкой: вернуть предложение, только если опубликованная версия выше.</summary>
-    public static async Task<GitHubReleaseOffer?> TryGetLatestOfferNewerThanAsync(Version current, CancellationToken ct = default)
+    public static async Task<GitHubReleaseOffer?> TryGetLatestOfferNewerThanAsync(ProductVersion current, CancellationToken ct = default)
     {
         var offer = await TryGetLatestOfferAsync(ct).ConfigureAwait(false);
         if (offer is null)
@@ -52,9 +52,10 @@ public static class GitHubUpdateService
         var dto = await JsonSerializer.DeserializeAsync<GitHubReleaseDto>(stream, JsonRead, ct).ConfigureAwait(false);
         if (dto is null)
             return null;
-        var v = ParseVersionFromTag(dto.TagName);
-        if (v is null)
+        var parsedVersion = ParseProductVersionFromTag(dto.TagName);
+        if (!parsedVersion.HasValue)
             return null;
+        var v = parsedVersion.Value;
         var asset = PickSetupAsset(dto);
         if (asset is null || string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl) || string.IsNullOrWhiteSpace(asset.Name))
             return null;
@@ -116,7 +117,7 @@ public static class GitHubUpdateService
         return null;
     }
 
-    private static Version? ParseVersionFromTag(string? tag)
+    private static ProductVersion? ParseProductVersionFromTag(string? tag)
     {
         if (string.IsNullOrWhiteSpace(tag))
             return null;
@@ -126,7 +127,7 @@ public static class GitHubUpdateService
         var dash = s.IndexOfAny(['-', '+', ' ']);
         if (dash > 0)
             s = s[..dash];
-        if (!Version.TryParse(s, out var v))
+        if (!ProductVersion.TryParse(s, out var v))
             return null;
         return v;
     }

@@ -5,7 +5,7 @@
 .DESCRIPTION
     1. dotnet publish -> dist\publish\ (win-x64, framework-dependent)
     2. Copy setting, reference, zona from repo root
-    3. Read version from CHANGELOG.md (bat\Resolve-VersionFromChangelog.ps1) -> dist\changelog_version_for_installer.txt
+    3. Read version from CHANGELOG.md (bat\Resolve-VersionFromChangelog.ps1) -> dist\changelog_version_assembly.txt + changelog_version_info.txt
     4. Run ISCC.exe with /DMyAppVersion /DMyAppVerFull on installer\AutoRAW.iss
     Requires Inno Setup 6 (ISCC) on the developer machine.
 #>
@@ -110,19 +110,20 @@ if (-not $iscc) {
     exit 2
 }
 
-$appVersionShort = Get-InstallerAppVersion
-$appVersionFull = ([version]$appVersionShort).ToString()
-Write-Host "  App version : $appVersionShort ($appVersionFull)" -ForegroundColor DarkGray
+$verPair = Get-InstallerVersionPair
+$appVersionDisplay = $verPair.Informational
+$appVersionFileInfo = $verPair.Assembly
+Write-Host "  App version : $appVersionDisplay (VersionInfo $appVersionFileInfo)" -ForegroundColor DarkGray
 Write-Host "  ISCC        : $iscc" -ForegroundColor DarkGray
 
 Write-Host "[5/5] Compiling installer (bundled .NET SDK ~210 MB)..." -ForegroundColor Cyan
-& $iscc @("/DMyAppVersion=$appVersionShort", "/DMyAppVerFull=$appVersionFull", $IssFile)
+& $iscc @("/DMyAppVersion=$appVersionDisplay", "/DMyAppVerFull=$appVersionFileInfo", $IssFile)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] ISCC failed, exit code $LASTEXITCODE." -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-$setupExe = Join-Path $RepoRoot "dist\AutoRAW-Setup-$appVersionShort-ru.exe"
+$setupExe = Join-Path $RepoRoot "dist\AutoRAW-Setup-$appVersionDisplay-ru.exe"
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green

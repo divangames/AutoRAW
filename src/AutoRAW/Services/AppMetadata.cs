@@ -3,32 +3,31 @@ using System.Reflection;
 namespace AutoRAW.Services;
 
 /// <summary>
-/// Версия продукта: сборка задаётся из верхней записи <c>CHANGELOG.md</c> (<c>## [x.y.z]</c>).
-/// В UI — только <c>Major.Minor.Build</c> из сборки.
+/// Версия продукта: из верхней записи <c>CHANGELOG.md</c> (<c>## [a.b.c.d.e]</c>, недостающие справа — нули).
+/// В UI — полная пятизначная строка из <c>AssemblyInformationalVersion</c>; для CLR — первые четыре компонента.
 /// </summary>
 public static class AppMetadata
 {
-    private static readonly Lazy<string> _display = new(ReadDisplay);
-    private static readonly Lazy<Version> _assemblyVersion = new(ReadAssemblyVersion);
+    private static readonly Lazy<ProductVersion> _productVersion = new(ReadProductVersion);
 
-    /// <summary>Короткая строка для заголовка окна, «О программе», ошибок (например <c>0.5.3</c>).</summary>
-    public static string DisplayVersion => _display.Value;
+    /// <summary>Полная версия для заголовка окна, «О программе», сравнения с релизом (например <c>0.7.6.0.0</c>).</summary>
+    public static string DisplayVersion => _productVersion.Value.ToString();
 
-    /// <summary>Версия сборки — для сравнения с опубликованными обновлениями.</summary>
-    public static Version AssemblyVersion => _assemblyVersion.Value;
+    /// <summary>Пятикомпонентная версия — для сравнения с опубликованными обновлениями.</summary>
+    public static ProductVersion AppVersion => _productVersion.Value;
 
-    /// <summary>Та же нотация, что <see cref="DisplayVersion"/>, для произвольного <see cref="Version"/>.</summary>
-    public static string FormatVersionUi(Version v) => $"{v.Major}.{v.Minor}.{v.Build}";
+    /// <summary>Первые четыре компонента как <see cref="Version"/> (совместимость, User-Agent).</summary>
+    public static Version AssemblyVersion => _productVersion.Value.ToAssemblyVersion();
 
-    private static string ReadDisplay()
+    private static ProductVersion ReadProductVersion()
     {
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        return v is null ? "0.0.0" : FormatVersionUi(v);
-    }
+        var info = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (ProductVersion.TryParse(info, out var v))
+            return v;
 
-    private static Version ReadAssemblyVersion()
-    {
-        var v = Assembly.GetExecutingAssembly().GetName().Version;
-        return v ?? new Version(0, 0, 0, 0);
+        var av = Assembly.GetExecutingAssembly().GetName().Version;
+        if (av is null)
+            return new ProductVersion(0, 0, 0, 0, 0);
+        return new ProductVersion(av.Major, av.Minor, av.Build, av.Revision, 0);
     }
 }

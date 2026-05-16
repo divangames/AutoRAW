@@ -1,6 +1,6 @@
 ; Inno Setup 6 — AutoRAW (русский UI, x64)
 ; Сборка: из корня репозитория запустите build-installer.ps1 (не компилируйте .iss вручную без /D — останутся заглушки 0.0.0).
-; Версии: при сборке build-installer.ps1 передаёт /DMyAppVersion и /DMyAppVerFull (из CHANGELOG).
+; Версии: build-installer.ps1 передаёт /DMyAppVersion (полная пятизначная) и /DMyAppVerFull (первые четыре компонента) из CHANGELOG.
 ; Без /D компилятор подставит заглушки ниже — не перезаписывать через #define без #ifndef.
 
 #define MyAppName      "AutoRAW"

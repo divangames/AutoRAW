@@ -9,18 +9,18 @@ public partial class UpdateAvailableWindow : Window
 {
     public bool UserChoseInstall { get; private set; }
 
-    public UpdateAvailableWindow(GitHubReleaseOffer offer, Version currentVersion)
+    public UpdateAvailableWindow(GitHubReleaseOffer offer, ProductVersion currentVersion)
     {
         InitializeComponent();
         HeadlineBlock.Text =
-            $"Версия {AppMetadata.FormatVersionUi(offer.Version)} (у вас {AppMetadata.FormatVersionUi(currentVersion)}) — {offer.ReleaseTitle}";
+            $"Версия {offer.Version} (у вас {currentVersion}) — {offer.ReleaseTitle}";
 
         BodyBrowser.Navigating += BodyBrowser_OnNavigating;
 
         var md = string.IsNullOrWhiteSpace(offer.BodyMarkdown)
             ? "*Описание обновления не указано.*"
             : offer.BodyMarkdown;
-        var title = $"AutoRAW {AppMetadata.FormatVersionUi(offer.Version)}";
+        var title = $"AutoRAW {offer.Version}";
         BodyBrowser.NavigateToString(MarkdownDocumentFormatter.ToHtmlDocument(md, title, narrowDialog: true));
     }
 

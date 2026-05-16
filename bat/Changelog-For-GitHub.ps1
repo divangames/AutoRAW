@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Extracts the top ## [x.y.z] section from CHANGELOG.md for pasting into a GitHub release description.
+  Extracts the top ## [a.b.c.d.e] section from CHANGELOG.md for pasting into a GitHub release description.
 #>
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
