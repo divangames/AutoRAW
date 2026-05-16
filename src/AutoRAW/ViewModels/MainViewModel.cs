@@ -1302,10 +1302,10 @@ public partial class MainViewModel : ObservableObject
                 var donePhrase = ZonaMessages.NextDone();
                 AppendLog(donePhrase, LogLineKind.Zona, fromZona: true);
                 var summary =
-                    $"✓ Успешно: {result.Succeeded}, ошибок: {result.Errors}, всего: {result.Total}. Время: {elapsed}.";
+                    $"✅ Успешно: {result.Succeeded}, ошибок: {result.Errors}, всего: {result.Total}. Время: {elapsed}.";
                 AppendLog(summary, LogLineKind.Done);
                 NotifyTelegram(
-                    $"✅ ZONA — пакет готов\n{donePhrase}\n\n{summary}\nПрофиль: {SelectedProduct.DisplayName}");
+                    $"{donePhrase}\n\n{summary}\nПрофиль: {SelectedProduct.DisplayName}");
             }
         }
         catch (OperationCanceledException)
