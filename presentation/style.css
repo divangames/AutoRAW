@@ -395,25 +395,15 @@ a{color:inherit;text-decoration:none}
   position:absolute;
   bottom:0;
   right:0;
-  z-index:0;pointer-events:none;
-  height:92%;
+  z-index:10;pointer-events:none;
+  height:96%;
 }
 .feat-char{
   height:100%;width:auto;
   object-fit:contain;object-position:bottom right;
   display:block;
-  opacity:.28;
-  filter:drop-shadow(0 0 40px rgba(74,158,255,.08));
-  mask-image:linear-gradient(
-    to left,
-    black 0%, black 55%,
-    transparent 100%
-  );
-  -webkit-mask-image:linear-gradient(
-    to left,
-    black 0%, black 55%,
-    transparent 100%
-  );
+  opacity:1;
+  filter:drop-shadow(-20px 0 40px rgba(8,8,15,.8));
 }
 .features-layout{
   position:relative;z-index:1;
