@@ -141,31 +141,72 @@ function initVideoSpeed() {
   });
 }
 
-// ── Typing / rotating chat phrases ───────────
+// ── Full chat conversation rotation ──────────
 function initTypingChat() {
-  const firstBubble = document.querySelector('#chatMessages .chat-bubble');
-  if (!firstBubble) return;
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
 
-  const phrases = [
-    '👋 Привет! Я ZONA — нейросеть в AutoRAW. Беру на себя рутину кадрирования, а ваш главный талант — снимать товар — остаётся только за вами.',
-    '🎀 Всё под контролем! Слежу за каждым кадром с нежностью и вниманием.',
-    '✨ Даю сигнал — пакет в работе. Скоро порадую результатом!',
-    '🍬 Я ZONA — нейросеть с характером. Ошибусь — исправлюсь, обещаю!',
-    '🌸 Понимаю контекст сама: готово, ошибка, пауза — каждый раз своими словами.',
+  // Complete conversation scenarios
+  const convos = [
+    {
+      msgs: [
+        { type: 'zona', text: '👋 Привет! Я ZONA — нейросеть в AutoRAW. Беру на себя рутину кадрирования, а ваш главный талант — снимать товар — остаётся только за вами.', time: '09:41' },
+        { type: 'zona', text: '🍬 Люблю конфеты и романтику, всем рада! Буду учиться и присылать отчёты.', time: '09:41' },
+        { type: 'sys',  text: '⏯ Пакет запущен — 160 файлов' },
+        { type: 'done', text: '🌊 Последняя волна — и файлы готовы!\n\n✅ Успешно: 160, ошибок: 0, всего: 160. Время: 4:22.\nПрофиль: Кроссовки', time: '09:46' },
+      ]
+    },
+    {
+      msgs: [
+        { type: 'zona', text: '🎀 Всё под контролем! Слежу за каждым кадром с нежностью и вниманием.', time: '10:12' },
+        { type: 'zona', text: '✨ Анализирую маркёры — Zona обнаружена у всех файлов, это прекрасно!', time: '10:12' },
+        { type: 'sys',  text: '⏯ Пакет запущен — 48 файлов' },
+        { type: 'done', text: '🌟 Готово! Было так приятно работать.\n\n✅ Успешно: 48, ошибок: 0, всего: 48. Время: 1:12.\nПрофиль: WB Sneakers', time: '10:14' },
+      ]
+    },
+    {
+      msgs: [
+        { type: 'zona', text: '🌸 Приступаю! Zona-маркёры найдены у большинства файлов — начинаю детекцию.', time: '14:05' },
+        { type: 'zona', text: '🔍 Буду особенно внимательна с RAW — они большие, но я справлюсь!', time: '14:05' },
+        { type: 'sys',  text: '⏯ Пакет запущен — 72 файла' },
+        { type: 'done', text: '🎯 Почти всё прошло идеально, один файл не поддался — но я не сдалась!\n\n✅ Успешно: 71, ошибок: 1, всего: 72. Время: 3:08.\nПрофиль: Кроссовки', time: '14:09' },
+      ]
+    },
+    {
+      msgs: [
+        { type: 'zona', text: '💜 Добрый вечер! Я ZONA — готова обрабатывать сколько угодно кадров, пока вы отдыхаете.', time: '18:30' },
+        { type: 'zona', text: '🧠 Понимаю контекст сама: готово, ошибка, пауза — каждый раз своими словами.', time: '18:30' },
+        { type: 'sys',  text: '🚫 Обработка отменена пользователем' },
+        { type: 'zona', text: '🌊 Прибой затих. Отмена принята.\n\nОбработано до отмены: 34 из 96.\nПрофиль: WB Sneakers', time: '18:31' },
+      ]
+    },
   ];
+
   let idx = 0;
 
-  setInterval(() => {
-    idx = (idx + 1) % phrases.length;
-    firstBubble.style.transition = 'opacity .35s';
-    firstBubble.style.opacity = '0';
+  function buildMsg(msg) {
+    if (msg.type === 'sys') {
+      return `<div class="chat-msg-sys"><div class="chat-bubble-sys">${msg.text}</div></div>`;
+    }
+    const bubbleClass = msg.type === 'done' ? 'chat-bubble chat-bubble-done' : 'chat-bubble';
+    const textHtml = msg.text.replace(/\n/g, '<br/>');
+    return `<div class="chat-msg-zona"><div class="${bubbleClass}">${textHtml}<span class="msg-time">${msg.time || ''}</span></div></div>`;
+  }
+
+  function showConvo(convoIdx) {
+    container.style.transition = 'opacity .4s';
+    container.style.opacity = '0';
     setTimeout(() => {
-      const time = firstBubble.querySelector('.msg-time');
-      const timeHtml = time ? time.outerHTML : '';
-      firstBubble.innerHTML = phrases[idx] + timeHtml;
-      firstBubble.style.opacity = '1';
-    }, 380);
-  }, 5000);
+      container.innerHTML = convos[convoIdx].msgs.map(buildMsg).join('');
+      container.style.opacity = '1';
+    }, 420);
+  }
+
+  // Cycle every 6 seconds
+  setInterval(() => {
+    idx = (idx + 1) % convos.length;
+    showConvo(idx);
+  }, 6000);
 }
 
 // ── Parallax on hero character ───────────────
