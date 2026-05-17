@@ -394,16 +394,16 @@ a{color:inherit;text-decoration:none}
 .feat-char-wrap{
   position:absolute;
   bottom:0;
-  right:0;
+  right:40px;
   z-index:10;pointer-events:none;
-  height:96%;
+  height:32%;
 }
 .feat-char{
   height:100%;width:auto;
   object-fit:contain;object-position:bottom right;
   display:block;
   opacity:1;
-  filter:drop-shadow(-20px 0 40px rgba(8,8,15,.8));
+  filter:drop-shadow(-10px 0 20px rgba(8,8,15,.6));
 }
 .features-layout{
   position:relative;z-index:1;
