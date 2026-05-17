@@ -445,6 +445,20 @@ a{color:inherit;text-decoration:none}
 
 /* ══════════ ZONA ══════════ */
 .s-zona{background:var(--bg)}
+
+.zona-char-wrap{
+  position:absolute;
+  bottom:0;right:40px;
+  z-index:10;pointer-events:none;
+  height:64%;
+}
+.zona-char{
+  height:100%;width:auto;
+  object-fit:contain;object-position:bottom right;
+  display:block;
+  opacity:1;
+  filter:drop-shadow(-10px 0 24px rgba(8,8,15,.7));
+}
 .zona-bg-glow{
   position:absolute;top:50%;left:50%;
   transform:translate(-50%,-50%);
