@@ -17,6 +17,17 @@
 
 ---
 
+## [0.7.7.0.0] — 2026-05-18
+
+### Добавлено
+- **Презентация для инвесторов** (`presentation/`): полноэкранный лендинг со scroll-snap — Hero с фоновым видео Kinescope, слайды «Возможности», «Zona», «ZONA AI», Telegram, стек и CTA; персонажи Zona с облачками и анимацией парения; ротация диалогов в макете чата; логотип `logo.png` в шапке и подвале (без текстовой подписи).
+- **Деплой презентации:** GitHub Actions публикует содержимое `presentation/` в ветку `gh-pages`; локально — `presentation/open.bat` (локальный сервер, деплой, открытие файла), `deploy.ps1`, пример `deploy.env.example` для выгрузки по SSH. Публичный URL после включения Pages: [divangames.github.io/AutoRAW](https://divangames.github.io/AutoRAW/).
+
+### Изменено
+- **Ресурсы:** в `assets/images/` добавлены иллюстрации для презентации (`fone_01`, `fone_02`, `hellow_02`, `hellow_03`, `cuting`, `shild`, `logo`).
+
+---
+
 ## [0.7.6.0.0] — 2026-05-17
 
 ### Добавлено
