@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoRAW — умное кадрирование для фотографов</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ══════════ NAVIGATION ══════════ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-logo">
+      <span class="nav-logo-icon">⬛</span>
+      <span class="nav-logo-text">AutoRAW</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#features">Возможности</a></li>
+      <li><a href="#zona">Технология Zona</a></li>
+      <li><a href="#ai">ZONA AI</a></li>
+      <li><a href="#telegram">Telegram</a></li>
+      <li><a href="#requirements">Требования</a></li>
+      <li><a href="https://github.com/divangames/AutoRAW" target="_blank" class="nav-github">GitHub →</a></li>
+    </ul>
+    <button class="nav-burger" id="navBurger" aria-label="Меню">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ══════════ HERO ══════════ -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-grid"></div>
+    <div class="hero-glow hero-glow-1"></div>
+    <div class="hero-glow hero-glow-2"></div>
+  </div>
+  <div class="container hero-content">
+    <div class="hero-badge animate-in" data-delay="0">
+      <span class="badge-dot"></span>
+      Версия 0.7.6.0.0 · Windows 10/11 · .NET 8
+    </div>
+    <h1 class="hero-title animate-in" data-delay="100">
+      Пакетное кадрирование<br />
+      <span class="gradient-text">без рутины</span>
+    </h1>
+    <p class="hero-sub animate-in" data-delay="200">
+      AutoRAW автоматизирует обработку товарных снимков по референсу
+      или по технологии «Zona» — красные маркёры заменяют ручную
+      обрезку сотен файлов.
+    </p>
+    <div class="hero-actions animate-in" data-delay="300">
+      <a href="https://github.com/divangames/AutoRAW/releases" target="_blank" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Скачать
+      </a>
+      <a href="https://github.com/divangames/AutoRAW" target="_blank" class="btn btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+    <div class="hero-stats animate-in" data-delay="400">
+      <div class="stat">
+        <div class="stat-num">RAW</div>
+        <div class="stat-label">NEF, CR2, ARW…</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Вложенных папок</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat">
+        <div class="stat-num">WebP</div>
+        <div class="stat-label">или JPEG экспорт</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat">
+        <div class="stat-num">AI</div>
+        <div class="stat-label">Помощница ZONA</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-scroll">
+    <div class="scroll-indicator">
+      <div class="scroll-dot"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ FEATURES ══════════ -->
+<section id="features" class="section features-section">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Возможности</div>
+      <h2 class="section-title">Всё для продуктивной работы с фото</h2>
+      <p class="section-sub">Инструменты, которые превращают часы ручной обработки в минуты автоматики</p>
+    </div>
+    <div class="features-grid">
+
+      <div class="feature-card feature-card-large">
+        <div class="feature-icon feature-icon-blue">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        </div>
+        <h3 class="feature-title">Пакетная обработка</h3>
+        <p class="feature-desc">Рекурсивный обход всех вложенных папок. Структура подпапок во входе повторяется в выходе. Сбой одного файла не останавливает пакет — остальные обрабатываются.</p>
+        <div class="feature-tags">
+          <span class="tag">Вложенные папки</span>
+          <span class="tag">Пауза / Отмена</span>
+          <span class="tag">Прогресс</span>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-purple">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        </div>
+        <h3 class="feature-title">Профили товара</h3>
+        <p class="feature-desc">Встроенные профили «Кроссовки» и «WB Sneakers». Создавайте свои — любые референсы и маркёры Zona.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-green">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
+        </div>
+        <h3 class="feature-title">Drag-and-drop</h3>
+        <p class="feature-desc">Перетащите папку или любой файл из неё прямо в поле «Товар (вход)» — путь подставится автоматически.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-orange">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M21 12h-3M6 12H3M12 3V0M12 24v-3"/></svg>
+        </div>
+        <h3 class="feature-title">Темы интерфейса</h3>
+        <p class="feature-desc">Светлая, тёмная или автоматически как в системе Windows. Переключение без перезапуска — меню «Вид → Тема».</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-cyan">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>
+        </div>
+        <h3 class="feature-title">Цветокоррекция XMP</h3>
+        <p class="feature-desc">Применение настроек из XMP-файлов (экспозиция, контраст, насыщенность) с превью «до/после» в реальном времени.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-pink">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <h3 class="feature-title">Экспорт WebP / JPEG</h3>
+        <p class="feature-desc">Выбор формата сохраняется. Готовые файлы — рядом с входной папкой в `webp` или `jpg`, либо в заданный каталог.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-yellow">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <h3 class="feature-title">Превью и анализ</h3>
+        <p class="feature-desc">Референс · До · После — три панели с живым пересчётом. Ползунок анализа регулирует точность кропа по длинной стороне.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon feature-icon-blue">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h3 class="feature-title">Обновления с GitHub</h3>
+        <p class="feature-desc">Автоматическая проверка при запуске и ручная через меню «Справка». Загрузка и тихая установка нового установщика.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ ZONA TECHNOLOGY ══════════ -->
+<section id="zona" class="section zona-section">
+  <div class="zona-bg">
+    <div class="zona-glow"></div>
+  </div>
+  <div class="container">
+    <div class="zona-layout">
+      <div class="zona-text">
+        <div class="section-tag section-tag-red">Технология «Zona»</div>
+        <h2 class="section-title">Кроп по красному маркёру</h2>
+        <p class="zona-desc">
+          Собственная разработка AutoRAW: рядом с каждым исходником
+          лежит маркёрное фото с <strong>красной рамкой</strong>
+          вокруг нужной области. Алгоритм находит контур, вычисляет
+          геометрию вместе с поворотом и точно вырезает кадр.
+        </p>
+        <div class="zona-steps">
+          <div class="zona-step">
+            <div class="step-num">01</div>
+            <div class="step-body">
+              <div class="step-title">Маркёрное фото</div>
+              <div class="step-text">В папке <code>zona/</code> — снимок с красной рамкой, имя файла совпадает с исходником.</div>
+            </div>
+          </div>
+          <div class="zona-step">
+            <div class="step-num">02</div>
+            <div class="step-body">
+              <div class="step-title">Детекция контура</div>
+              <div class="step-text">OpenCV находит красную область, строит ограничивающий прямоугольник с учётом угла поворота.</div>
+            </div>
+          </div>
+          <div class="zona-step">
+            <div class="step-num">03</div>
+            <div class="step-body">
+              <div class="step-title">Перенос геометрии</div>
+              <div class="step-text">Координаты масштабируются на полноразмерный RAW; вырезается финальный кадр нужного размера.</div>
+            </div>
+          </div>
+          <div class="zona-step">
+            <div class="step-num">04</div>
+            <div class="step-body">
+              <div class="step-title">Приоритет над референсом</div>
+              <div class="step-text">Если маркёр найден — Zona в приоритете. Иначе — автоматически переключается на кроп по референсу.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="zona-visual">
+        <div class="zona-card">
+          <div class="zona-card-header">
+            <div class="zona-card-dot zona-card-dot-red"></div>
+            <div class="zona-card-dot zona-card-dot-yellow"></div>
+            <div class="zona-card-dot zona-card-dot-green"></div>
+            <span>Zona — детекция маркёра</span>
+          </div>
+          <div class="zona-card-body">
+            <div class="zona-mock-img">
+              <div class="mock-photo">
+                <div class="mock-red-zone"></div>
+                <div class="mock-corners">
+                  <div class="mock-corner mock-corner-tl"></div>
+                  <div class="mock-corner mock-corner-tr"></div>
+                  <div class="mock-corner mock-corner-bl"></div>
+                  <div class="mock-corner mock-corner-br"></div>
+                </div>
+              </div>
+              <div class="mock-arrow">→</div>
+              <div class="mock-result">
+                <div class="mock-result-inner">
+                  <div class="mock-check">✓</div>
+                  <div class="mock-result-label">Zona</div>
+                </div>
+              </div>
+            </div>
+            <div class="zona-log">
+              <div class="log-line log-line-ok">✅ 01.nef → zona detected</div>
+              <div class="log-line log-line-ok">✅ 02.nef → zona detected</div>
+              <div class="log-line log-line-ref">📐 03.nef → reference fallback</div>
+              <div class="log-line log-line-ok">✅ 04.nef → zona detected</div>
+              <div class="log-line log-line-ok">✅ 05.nef → zona detected</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ ZONA AI ══════════ -->
+<section id="ai" class="section ai-section">
+  <div class="container">
+    <div class="ai-layout">
+      <div class="ai-chat">
+        <div class="chat-window">
+          <div class="chat-header">
+            <div class="chat-avatar">
+              <img src="../assets/images/ava_z.png" alt="ZONA" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+              <div class="chat-avatar-fallback">Z</div>
+            </div>
+            <div class="chat-header-info">
+              <div class="chat-name">ZONA</div>
+              <div class="chat-status"><span class="online-dot"></span> нейросеть-помощница</div>
+            </div>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg chat-msg-zona">
+              <div class="chat-bubble">
+                👋 Привет! Я ZONA — нейросеть в AutoRAW. Беру на себя рутину кадрирования, а ваш главный талант — снимать товар — остаётся только за вами.
+                <span class="msg-time">09:41</span>
+              </div>
+            </div>
+            <div class="chat-msg chat-msg-zona">
+              <div class="chat-bubble">
+                🍬 Люблю конфеты и романтику, всем рада! Буду присылать отчёты об успехах и ошибках — иногда ошибусь сама, не обижайтесь, буду учиться дальше.
+                <span class="msg-time">09:41</span>
+              </div>
+            </div>
+            <div class="chat-msg chat-msg-system">
+              <div class="chat-bubble-system">⏯ Пакет запущен — 160 файлов</div>
+            </div>
+            <div class="chat-msg chat-msg-zona">
+              <div class="chat-bubble chat-bubble-done">
+                🌊 Последняя волна — и файлы готовы. Смотрите!<br /><br />
+                ✅ Успешно: 160, ошибок: 0, всего: 160. Время: 4:22.<br />
+                Профиль: Кроссовки
+                <span class="msg-time">09:46</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ai-text">
+        <div class="section-tag section-tag-purple">ZONA AI</div>
+        <h2 class="section-title">Помощница с характером</h2>
+        <p class="ai-desc">
+          ZONA — не просто лог-панель. Она общается живыми фразами,
+          отчитывается об успехах и честно признаёт ошибки.
+          100 вариантов приветствий, сообщений о завершении,
+          паузе и отмене — каждый раз по-новому.
+        </p>
+        <div class="ai-features">
+          <div class="ai-feature">
+            <div class="ai-feature-icon">💬</div>
+            <div>
+              <div class="ai-feature-title">Чат-журнал</div>
+              <div class="ai-feature-desc">Пузыри сообщений с аватаром, временем и кнопкой копирования</div>
+            </div>
+          </div>
+          <div class="ai-feature">
+            <div class="ai-feature-icon">🎭</div>
+            <div>
+              <div class="ai-feature-title">100 вариантов фраз</div>
+              <div class="ai-feature-desc">Приветствия, «готово», ошибки, пауза, отмена — без повторов</div>
+            </div>
+          </div>
+          <div class="ai-feature">
+            <div class="ai-feature-icon">⧉</div>
+            <div>
+              <div class="ai-feature-title">Отдельное окно</div>
+              <div class="ai-feature-desc">Вынесите чат в отдельное окно, перетащите за заголовок</div>
+            </div>
+          </div>
+          <div class="ai-feature">
+            <div class="ai-feature-icon">🎨</div>
+            <div>
+              <div class="ai-feature-title">Цветовая маркировка</div>
+              <div class="ai-feature-desc">Ошибки — красным, пауза — синим, успех — зелёным</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ TELEGRAM ══════════ -->
+<section id="telegram" class="section tg-section">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag section-tag-blue">Telegram</div>
+      <h2 class="section-title">Уведомления прямо в чат</h2>
+      <p class="section-sub">Закройте ноутбук и узнайте о результате, когда пакет обработается</p>
+    </div>
+    <div class="tg-layout">
+      <div class="tg-cards">
+        <div class="tg-card tg-card-done">
+          <div class="tg-card-icon">✅</div>
+          <div class="tg-card-body">
+            <div class="tg-card-title">Пакет готов</div>
+            <div class="tg-card-msg">🎯 Цель достигнута — пакет готов!<br /><br />✅ Успешно: 48, ошибок: 0, всего: 48. Время: 1:12.<br />Профиль: WB Sneakers</div>
+            <div class="tg-card-time">14:32</div>
+          </div>
+        </div>
+        <div class="tg-card tg-card-error">
+          <div class="tg-card-icon">❌</div>
+          <div class="tg-card-body">
+            <div class="tg-card-title">Ошибка</div>
+            <div class="tg-card-msg">⚡ Что-то пошло не так, но я уже разбираюсь!<br /><br />Cannot read file: 07.nef</div>
+            <div class="tg-card-time">14:33</div>
+          </div>
+        </div>
+        <div class="tg-card tg-card-cancel">
+          <div class="tg-card-icon">🚫</div>
+          <div class="tg-card-body">
+            <div class="tg-card-title">Отмена</div>
+            <div class="tg-card-msg">🌊 Прибой затих. Отмена.</div>
+            <div class="tg-card-time">14:34</div>
+          </div>
+        </div>
+      </div>
+      <div class="tg-info">
+        <div class="tg-info-item">
+          <div class="tg-info-num">01</div>
+          <div class="tg-info-text">
+            <strong>Создайте бота</strong> у @BotFather — получите токен
+          </div>
+        </div>
+        <div class="tg-info-item">
+          <div class="tg-info-num">02</div>
+          <div class="tg-info-text">
+            <strong>Откройте</strong> Настройки → Telegram ZONA в программе
+          </div>
+        </div>
+        <div class="tg-info-item">
+          <div class="tg-info-num">03</div>
+          <div class="tg-info-text">
+            <strong>Введите</strong> токен и ID чата, нажмите «Проверить»
+          </div>
+        </div>
+        <div class="tg-info-item">
+          <div class="tg-info-num">04</div>
+          <div class="tg-info-text">
+            <strong>Готово</strong> — данные сохранены на ПК и защищены паролем
+          </div>
+        </div>
+        <div class="tg-privacy">
+          🔒 Токен и Chat ID хранятся только на вашем компьютере.<br />
+          Изменить — только через пароль.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ STACK ══════════ -->
+<section class="section stack-section">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Стек</div>
+      <h2 class="section-title">Технологии внутри</h2>
+    </div>
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="stack-icon stack-icon-blue">.NET</div>
+        <div class="stack-name">.NET 8</div>
+        <div class="stack-desc">Современный быстрый рантайм</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon stack-icon-purple">WPF</div>
+        <div class="stack-name">WPF</div>
+        <div class="stack-desc">Нативный Windows UI</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon stack-icon-green">CV</div>
+        <div class="stack-name">OpenCvSharp</div>
+        <div class="stack-desc">Детекция красной зоны</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon stack-icon-orange">MN</div>
+        <div class="stack-name">Magick.NET</div>
+        <div class="stack-desc">RAW и экспорт WebP/JPEG</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon stack-icon-cyan">TG</div>
+        <div class="stack-name">Telegram Bot API</div>
+        <div class="stack-desc">Уведомления о пакете</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon stack-icon-yellow">ISS</div>
+        <div class="stack-name">Inno Setup</div>
+        <div class="stack-desc">Установщик с .NET внутри</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ REQUIREMENTS ══════════ -->
+<section id="requirements" class="section req-section">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Системные требования</div>
+      <h2 class="section-title">Запустится на большинстве ПК</h2>
+    </div>
+    <div class="req-grid">
+      <div class="req-card req-card-min">
+        <div class="req-badge">Минимальные</div>
+        <table class="req-table">
+          <tr><td class="req-label">ОС</td><td>Windows 10 / 11, x64</td></tr>
+          <tr><td class="req-label">Процессор</td><td>2 ядра x64, ~1.5 ГГц</td></tr>
+          <tr><td class="req-label">Память</td><td>4 ГБ ОЗУ</td></tr>
+          <tr><td class="req-label">Диск</td><td>~1 ГБ + файлы проекта</td></tr>
+          <tr><td class="req-label">Экран</td><td>1280×720</td></tr>
+          <tr><td class="req-label">Рантайм</td><td>.NET 8 Windows Desktop</td></tr>
+        </table>
+      </div>
+      <div class="req-card req-card-rec">
+        <div class="req-badge req-badge-rec">Рекомендуемые</div>
+        <table class="req-table">
+          <tr><td class="req-label">ОС</td><td>Windows 10 / 11, x64</td></tr>
+          <tr><td class="req-label">Процессор</td><td>4+ ядра, Intel/AMD 2020+</td></tr>
+          <tr><td class="req-label">Память</td><td>8–16 ГБ ОЗУ</td></tr>
+          <tr><td class="req-label">Диск</td><td>SSD, запас × 2–3 от объёма фото</td></tr>
+          <tr><td class="req-label">Экран</td><td>1920×1080 и выше</td></tr>
+          <tr><td class="req-label">Сеть</td><td>Для обновлений и Telegram</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ CTA ══════════ -->
+<section class="section cta-section">
+  <div class="container">
+    <div class="cta-card">
+      <div class="cta-glow"></div>
+      <div class="cta-content">
+        <h2 class="cta-title">Попробуйте AutoRAW прямо сейчас</h2>
+        <p class="cta-sub">Скачайте установщик с GitHub Releases — автоматически установит .NET при необходимости</p>
+        <div class="cta-actions">
+          <a href="https://github.com/divangames/AutoRAW/releases" target="_blank" class="btn btn-primary btn-large">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Скачать AutoRAW
+          </a>
+          <a href="https://github.com/divangames/AutoRAW" target="_blank" class="btn btn-outline">
+            Открыть репозиторий
+          </a>
+        </div>
+        <div class="cta-version">Актуальная версия: <strong>0.7.6.0.0</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <div class="footer-logo">
+        <span class="nav-logo-icon">⬛</span>
+        <span>AutoRAW</span>
+      </div>
+      <p class="footer-copy">© 2026 WhiteCube. Все права защищены.</p>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/divangames/AutoRAW" target="_blank">GitHub</a>
+      <a href="https://github.com/divangames/AutoRAW/releases" target="_blank">Релизы</a>
+      <a href="https://белаякоробка.рф/" target="_blank">WhiteCube</a>
+    </div>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
