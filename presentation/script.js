@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavActive();
   initNavScroll();
   initTypingChat();
+  initVideoSpeed();
 });
 
 // ── Animate on scroll ──
@@ -130,6 +131,31 @@ function initTypingChat() {
       firstBubble.style.opacity = '1';
     }, 400);
   }, 5000);
+}
+
+// ── Kinescope video speed x2 via postMessage ──
+function initVideoSpeed() {
+  const iframe = document.getElementById('heroVideo');
+  if (!iframe) return;
+
+  const setSpeed = () => {
+    try {
+      // Kinescope Player API
+      iframe.contentWindow.postMessage(
+        JSON.stringify({ method: 'setPlaybackRate', value: 2 }),
+        '*'
+      );
+      // Alternative format
+      iframe.contentWindow.postMessage({ event: 'setPlaybackRate', data: 2 }, '*');
+    } catch (e) { /* cross-origin guard */ }
+  };
+
+  iframe.addEventListener('load', () => {
+    setSpeed();
+    // Retry after Kinescope player init
+    setTimeout(setSpeed, 2000);
+    setTimeout(setSpeed, 4000);
+  });
 }
 
 // ── Nav active link style ──

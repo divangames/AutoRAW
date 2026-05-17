@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoRAW — умное кадрирование для фотографов</title>
+  <link rel="icon" href="images/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,7 +37,8 @@
 <section class="hero">
   <div class="hero-video-bg">
     <iframe
-      src="https://kinescope.io/embed/4FJbXLCmydcAJ5dsx8L84a?autoplay=1&muted=1&loop=1&controls=0&background=1"
+      id="heroVideo"
+      src="https://kinescope.io/embed/4FJbXLCmydcAJ5dsx8L84a?autoplay=1&muted=1&loop=1&controls=0&background=1&playbackRate=2"
       frameborder="0"
       allow="autoplay; fullscreen"
       allowfullscreen
@@ -93,6 +95,9 @@
         <div class="stat-label">Помощница ZONA</div>
       </div>
     </div>
+  </div>
+  <div class="hero-character">
+    <img src="images/fone_01.png" alt="ZONA" />
   </div>
   <div class="hero-scroll">
     <div class="scroll-indicator">
@@ -274,13 +279,16 @@
 
 <!-- ══════════ ZONA AI ══════════ -->
 <section id="ai" class="section ai-section">
+  <div class="ai-fone">
+    <img src="images/fone_02.png" alt="" />
+  </div>
   <div class="container">
     <div class="ai-layout">
       <div class="ai-chat">
         <div class="chat-window">
           <div class="chat-header">
             <div class="chat-avatar">
-              <img src="../assets/images/ava_z.png" alt="ZONA" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+              <img src="images/ava_z.png" alt="ZONA" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="chat-avatar-fallback">Z</div>
             </div>
             <div class="chat-header-info">
