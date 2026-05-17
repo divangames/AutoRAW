@@ -15,10 +15,9 @@
 <!-- ══════════ NAV ══════════ -->
 <nav class="nav">
   <div class="nav-inner">
-    <div class="nav-logo">
-      <div class="nav-logo-mark"></div>
-      <span>AutoRAW</span>
-    </div>
+    <a href="#s-hero" class="nav-logo" aria-label="AutoRAW">
+      <img src="images/logo.png" alt="AutoRAW" class="nav-logo-img" />
+    </a>
     <ul class="nav-links">
       <li><a href="#s-features">Возможности</a></li>
       <li><a href="#s-zona">Zona</a></li>
@@ -108,10 +107,14 @@
       </div>
     </div>
 
-    <div class="hero-scroll-hint">
-      <span>прокрутите</span>
-      <div class="scroll-track"><div class="scroll-thumb"></div></div>
-    </div>
+    <aside class="hero-speech ri" data-d="280" aria-label="Приветствие Zona">
+      <div class="hero-speech-bubble">
+        <span class="hero-speech-name">Привет! Я — маленькая Zona</span>
+        <p>Учусь каждый день — и могу больше, чем кажется. С тобой стану ещё сильнее, обещаю! ✨</p>
+      </div>
+    </aside>
+
+
   </section>
 
   <!-- ② FEATURES ─────────────────────────────── -->
@@ -119,6 +122,12 @@
     <div class="feat-char-wrap">
       <img src="images/hellow_02.png" alt="" class="feat-char" />
     </div>
+    <aside class="feat-speech ri" data-d="200" aria-label="Zona говорит">
+      <div class="feat-speech-bubble">
+        <span class="feat-speech-name">Я, маленькая Zona</span>
+        <p>У меня сильный и опасный арсенал — готова идти в бой! Только верь в меня! ⚔️</p>
+      </div>
+    </aside>
     <div class="container">
       <div class="features-layout">
         <div class="feat-head">
@@ -169,6 +178,12 @@
     <div class="zona-char-wrap">
       <img src="images/cuting.png" alt="" class="zona-char" />
     </div>
+    <aside class="zona-speech ri" data-d="200" aria-label="Zona говорит">
+      <div class="zona-speech-bubble">
+        <span class="zona-speech-name">Я, Zona</span>
+        <p>За тебя горю! Пусть и маленькая — всё сделаю. Поверь в меня, как я в тебя! 🔥</p>
+      </div>
+    </aside>
     <div class="zona-bg-glow"></div>
     <div class="container">
       <div class="zona-layout">
@@ -254,6 +269,12 @@
     <div class="ai-char-wrap">
       <img src="images/fone_02.png" alt="" class="ai-char" />
     </div>
+    <aside class="ai-speech ri" data-d="200" aria-label="Zona говорит">
+      <div class="ai-speech-bubble">
+        <span class="ai-speech-name">Я, Zona</span>
+        <p>— нейросеть, которая сама понимает контекст. Чувствую, когда пакет готов, когда что-то пошло не так, когда работа остановлена — и каждый раз отвечаю своими словами, без шаблонов.</p>
+      </div>
+    </aside>
     <div class="container">
       <div class="ai-layout">
         <div class="ai-chat-wrap ri" data-d="80">
@@ -299,11 +320,6 @@
         <div class="ai-text">
           <div class="section-tag section-tag-purple ri" data-d="0">ZONA AI</div>
           <h2 class="section-title ri" data-d="80">Помощница<br/>с характером</h2>
-          <p class="ai-desc ri" data-d="160">
-            ZONA — нейросеть, которая сама понимает контекст. Она чувствует,
-            когда пакет готов, когда что-то пошло не так, когда работа
-            остановлена — и каждый раз отвечает своими словами, без шаблонов.
-          </p>
           <div class="ai-feats">
             <div class="ai-feat ri" data-d="220">
               <div class="ai-feat-icon">💬</div>
@@ -341,6 +357,15 @@
 
   <!-- ⑤ TELEGRAM ───────────────────────────────── -->
   <section class="snap-sec s-telegram" id="s-telegram" data-idx="4">
+    <div class="tg-char-wrap">
+      <img src="images/shild.png" alt="" class="tg-char" />
+    </div>
+    <aside class="tg-speech ri" data-d="180" aria-label="Zona говорит">
+      <div class="tg-speech-bubble">
+        <span class="tg-speech-name">Это я, малышка Zona</span>
+        <p>Да, я маленькая — но сильная! Твои данные никому не отдам, обещаю. И я тебя тоже люблю! 🛡️💙</p>
+      </div>
+    </aside>
     <div class="container">
       <div class="tg-layout">
         <div class="tg-left">
@@ -447,8 +472,23 @@
 
   <!-- ⑦ CTA ───────────────────────────────────── -->
   <section class="snap-sec s-cta" id="s-cta" data-idx="6">
+    <div class="cta-video-bg">
+      <iframe id="ctaVideo"
+        src="https://kinescope.io/embed/4FJbXLCmydcAJ5dsx8L84a?autoplay=1&muted=1&loop=1&controls=0&background=1&playbackRate=2"
+        frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>
+      <div class="cta-video-overlay"></div>
+    </div>
     <div class="cta-glow-1"></div>
     <div class="cta-glow-2"></div>
+    <div class="cta-char-wrap">
+      <img src="images/hellow_03.png" alt="ZONA" class="cta-char" />
+    </div>
+    <aside class="cta-speech" aria-label="Zona говорит">
+      <div class="cta-speech-bubble ri" data-d="360">
+        <span class="cta-speech-name">Я, Zona</span>
+        <p>Я сильно хочу быть с тобой и дружить! 💙</p>
+      </div>
+    </aside>
     <div class="container cta-inner">
       <div class="cta-tag ri" data-d="0">WhiteCube · 2026</div>
       <h2 class="cta-title ri" data-d="80">
@@ -472,7 +512,9 @@
     <footer class="footer">
       <div class="container footer-inner">
         <div>
-          <div class="footer-logo"><div class="nav-logo-mark"></div><span>AutoRAW</span></div>
+          <div class="footer-logo">
+            <img src="images/logo.png" alt="AutoRAW" class="footer-logo-img" />
+          </div>
           <div class="footer-copy">© 2026 WhiteCube. Все права защищены.</div>
         </div>
         <div class="footer-links">

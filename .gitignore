@@ -26,3 +26,6 @@ test/One/
 
 # Adobe Photoshop — исходники макетов (в репозитории держим экспорт PNG/JPG)
 *.psd
+
+# Деплой презентации (SSH), локальные секреты
+presentation/deploy.env

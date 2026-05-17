@@ -122,23 +122,25 @@ function initNavBurger() {
 
 // ── Kinescope speed x2 ───────────────────────
 function initVideoSpeed() {
-  const iframe = document.getElementById('heroVideo');
-  if (!iframe) return;
-
-  const send = () => {
-    try {
-      iframe.contentWindow.postMessage(
-        JSON.stringify({ method: 'setPlaybackRate', value: 2 }), '*'
-      );
-      iframe.contentWindow.postMessage({ event: 'setPlaybackRate', data: 2 }, '*');
-    } catch (_) {}
+  const bindSpeed = (iframe) => {
+    if (!iframe) return;
+    const send = () => {
+      try {
+        iframe.contentWindow.postMessage(
+          JSON.stringify({ method: 'setPlaybackRate', value: 2 }), '*'
+        );
+        iframe.contentWindow.postMessage({ event: 'setPlaybackRate', data: 2 }, '*');
+      } catch (_) {}
+    };
+    iframe.addEventListener('load', () => {
+      send();
+      setTimeout(send, 1500);
+      setTimeout(send, 3500);
+    });
   };
 
-  iframe.addEventListener('load', () => {
-    send();
-    setTimeout(send, 1500);
-    setTimeout(send, 3500);
-  });
+  bindSpeed(document.getElementById('heroVideo'));
+  bindSpeed(document.getElementById('ctaVideo'));
 }
 
 // ── Full chat conversation rotation ──────────
