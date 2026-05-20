@@ -524,7 +524,8 @@ a{color:inherit;text-decoration:none}
   position:absolute;
   bottom:0;right:40px;
   z-index:10;pointer-events:none;
-  height:99%;
+  height:64%;
+  overflow:visible;
   transform:translateX(30%);
 }
 .zona-char{
@@ -532,6 +533,8 @@ a{color:inherit;text-decoration:none}
   object-fit:contain;object-position:bottom right;
   display:block;
   opacity:1;
+  transform:scale(2);
+  transform-origin:bottom right;
   filter:drop-shadow(-10px 0 24px rgba(8,8,15,.7));
 }
 
@@ -679,7 +682,8 @@ a{color:inherit;text-decoration:none}
   position:absolute;
   bottom:0;right:40px;
   z-index:10;pointer-events:none;
-  height:99%;
+  height:77%;
+  overflow:visible;
   display:flex;align-items:flex-end;
   transform:translateX(20%);
 }
@@ -689,6 +693,8 @@ a{color:inherit;text-decoration:none}
   object-fit:contain;object-position:bottom right;
   display:block;
   opacity:1;
+  transform:scale(2);
+  transform-origin:bottom right;
   filter:drop-shadow(-10px 0 24px rgba(8,8,15,.7));
 }
 
@@ -812,7 +818,7 @@ a{color:inherit;text-decoration:none}
   position:absolute;
   bottom:0;right:40px;
   z-index:10;pointer-events:none;
-  height:56%;
+  height:84%;
   transform:translateX(20%);
 }
 .tg-char{
