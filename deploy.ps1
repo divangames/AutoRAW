@@ -70,8 +70,10 @@ function Deploy-GitHubPages {
         if ($LASTEXITCODE -ne 0) { throw 'git push failed' }
 
         Write-Host ''
-        Write-Host 'Pushed. Site: https://divangames.github.io/AutoRAW/'
-        Write-Host 'Enable Pages once: repo Settings -> Pages -> Source: GitHub Actions.'
+        Write-Host 'Pushed. Workflow: Actions -> Deploy presentation'
+        Write-Host 'Site (after 1-2 min): https://divangames.github.io/AutoRAW/'
+        Write-Host ''
+        Write-Host 'If 404: Settings -> Pages -> Deploy from branch -> gh-pages / (root).'
     } finally {
         Pop-Location
     }
