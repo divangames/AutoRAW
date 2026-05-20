@@ -108,7 +108,7 @@ public static class ZonaCropService
             int h = Math.Clamp((int)Math.Round(rh), 1, th - y);
 
             using var croppedMat = new Mat(rotated, new Rect(x, y, w, h));
-            return MatToMagick(croppedMat);
+            return MagickMatConverter.ToMagickImage(croppedMat);
         }
         else
         {
@@ -124,6 +124,14 @@ public static class ZonaCropService
         }
     }
 
+    /// <summary>Размер Zona-области в пикселях полноразмерного изображения (задаёт масштаб кропа).</summary>
+    public static (double CropW, double CropH) GetCropDimensions(MagickImage full, ZonaCropResult zona)
+    {
+        double sx = (double)full.Width / zona.ZonaWidth;
+        double sy = (double)full.Height / zona.ZonaHeight;
+        return (zona.RectInZonaCoords.Size.Width * sx, zona.RectInZonaCoords.Size.Height * sy);
+    }
+
     // Convenience: crop and save to file
     public static void ApplyCrop(MagickImage full, ZonaCropResult zona, string outputPath)
     {
@@ -131,14 +139,6 @@ public static class ZonaCropService
         result.Format = MagickFormat.Jpeg;
         result.Quality = 92;
         result.Write(outputPath);
-    }
-
-    // ----------------------------------------------------------------
-    private static MagickImage MatToMagick(Mat mat)
-    {
-        Cv2.ImEncode(".png", mat, out var buf);
-        using var ms = new System.IO.MemoryStream(buf);
-        return new MagickImage(ms);
     }
 
     private static Mat BuildRedMask(Mat bgr)

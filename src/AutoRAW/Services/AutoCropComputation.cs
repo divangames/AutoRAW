@@ -59,7 +59,24 @@ public static class AutoCropComputation
         return new TargetMetrics(subjectTarget, imgW, imgH);
     }
 
-    public static Box2d ComputeCropBox(ReferenceMetrics reference, TargetMetrics target)
+    /// <summary>Цель для сценария <c>operation</c> — <see cref="SubjectBoundsEstimator.EstimateForOperation"/>, без логики line-guide/стола.</summary>
+    public static TargetMetrics AnalyzeTargetForOperation(MagickImage fullOriented, int analysisMaxEdge)
+    {
+        var imgW = (double)fullOriented.Width;
+        var imgH = (double)fullOriented.Height;
+
+        using var analysis = CloneResizedLongEdge(fullOriented, analysisMaxEdge);
+        var scale = imgW / analysis.Width;
+
+        Box2d subjectTarget;
+        using (var mat = MagickMatConverter.ToMatBgr(analysis))
+            subjectTarget = SubjectBoundsEstimator.EstimateForOperation(mat);
+
+        subjectTarget = subjectTarget.Scale(scale, scale);
+        return new TargetMetrics(subjectTarget, imgW, imgH);
+    }
+
+    public static Box2d ComputeCropBox(ReferenceMetrics reference, TargetMetrics target, bool centerSubjectInFrame = false)
     {
         return CropGeometryService.ComputeCrop(
             reference.SubjectRef,
@@ -67,7 +84,8 @@ public static class AutoCropComputation
             reference.RefH,
             target.SubjectTarget,
             target.ImgW,
-            target.ImgH);
+            target.ImgH,
+            centerSubjectInFrame);
     }
 
     public static MagickImage CloneResizedLongEdge(MagickImage src, int maxEdge)
@@ -83,6 +101,15 @@ public static class AutoCropComputation
         clone.Resize(nw, nh);
         return clone;
     }
+
+    /// <summary>Совмещает положение товара в кадре с референсом (после кропа и масштаба).</summary>
+    public static void AlignCompositionToReference(
+        MagickImage image,
+        ReferenceMetrics reference,
+        int analysisMaxEdge,
+        string? outputFileStem = null,
+        string? zonaFolder = null) =>
+        ReferenceCompositionAlignService.Align(image, reference, analysisMaxEdge, outputFileStem, zonaFolder);
 
     /// <summary>Приводит кадр к пиксельному размеру референса (например 1400×1050 для «Кроссовки»).</summary>
     public static void ResizeToReferenceOutputSize(MagickImage image, ReferenceMetrics reference)

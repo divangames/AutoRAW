@@ -20,7 +20,25 @@ public partial class CropMappingRowViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedReferenceFile = string.Empty;
 
+    /// <summary>Имя выходного файла без расширения (например 06); иначе — как у входа.</summary>
+    [ObservableProperty]
+    private string? _outputFileStem;
+
+    /// <summary>Имя маркёра Zona без расширения (обычно совпадает с номером референса).</summary>
+    [ObservableProperty]
+    private string? _zonaMarkerStem;
+
+    /// <summary>Повернуть исходник на 90° против часовой перед кропом.</summary>
+    [ObservableProperty]
+    private bool _rotateCounterClockwise90;
+
     public string InputFileName => Path.GetFileName(InputPath);
+
+    public string DisplayReferenceLabel =>
+        string.IsNullOrWhiteSpace(OutputFileStem)
+            ? Path.GetFileNameWithoutExtension(SelectedReferenceFile)
+            : OutputFileStem;
 
     partial void OnSelectedReferenceFileChanged(string value) => _notifyParent?.Invoke();
 }
+

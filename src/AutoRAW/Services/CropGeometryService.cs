@@ -7,7 +7,7 @@ public static class CropGeometryService
     /// <summary>
     /// Строит кадр так, чтобы:
     ///   • объект занимал ту же долю кадра, что на референсе (определяет «зум»);
-    ///   • объект всегда находился в центре кропа;
+    ///   • центр объекта в кадре совпадал с положением на референсе (не только геометрический центр);
     ///   • соотношение сторон = как у референса.
     /// </summary>
     public static Box2d ComputeCrop(
@@ -16,7 +16,8 @@ public static class CropGeometryService
         double refImageHeight,
         Box2d subjectTarget,
         double targetImageWidth,
-        double targetImageHeight)
+        double targetImageHeight,
+        bool centerSubjectInFrame = false)
     {
         var refW = refImageWidth;
         var refH = refImageHeight;
@@ -36,31 +37,47 @@ public static class CropGeometryService
         else
             cropW = cropH * aspect;
 
-        // Центрируем объект цели в выходном кропе
-        var x0 = subjectTarget.CenterX - cropW * 0.5;
-        var y0 = subjectTarget.CenterY - cropH * 0.5;
+        var relX = centerSubjectInFrame
+            ? 0.5
+            : subjectRef.CenterX / Math.Max(1e-6, refW);
+        var relY = centerSubjectInFrame
+            ? 0.5
+            : subjectRef.CenterY / Math.Max(1e-6, refH);
+        var x0 = subjectTarget.CenterX - relX * cropW;
+        var y0 = subjectTarget.CenterY - relY * cropH;
 
         var crop = new Box2d(x0, y0, cropW, cropH);
 
-        return FitInsideImage(crop, targetImageWidth, targetImageHeight, subjectTarget);
+        return FitInsideImage(crop, targetImageWidth, targetImageHeight, subjectTarget, preserveSubjectBottom: false);
     }
 
     /// <summary>
-    /// Умещаем кроп в изображение: если не влезает — равномерно уменьшаем (вокруг центра объекта),
-    /// затем прижимаем к краям.
+    /// Умещаем кроп в границы кадра. Сохраняем заданный прямоугольник, если он влезает.
+    /// Если нужно уменьшить — масштабируем вокруг опорной точки объекта (центр XY или центр X + низ по Y).
     /// </summary>
-    private static Box2d FitInsideImage(Box2d crop, double imgW, double imgH, Box2d anchor)
+    /// <summary>Уменьшает и сдвигает кроп так, чтобы он целиком лежал в кадре, сохраняя положение объекта в кадре.</summary>
+    public static Box2d FitInsideImage(
+        Box2d crop,
+        double imgW,
+        double imgH,
+        Box2d anchor,
+        bool preserveSubjectBottom)
     {
         if (crop.Width <= 1 || crop.Height <= 1)
             return Box2d.CenterFraction(imgW, imgH, 0.95, 0.95);
+
+        var px = anchor.CenterX;
+        var py = preserveSubjectBottom ? anchor.Bottom : anchor.CenterY;
+
+        var fx = (px - crop.X) / crop.Width;
+        var fy = (py - crop.Y) / crop.Height;
 
         var s = Math.Min(1.0, Math.Min(imgW / crop.Width, imgH / crop.Height));
         var w = crop.Width * s;
         var h = crop.Height * s;
 
-        // После масштабирования держим объект по центру
-        var x = anchor.CenterX - w * 0.5;
-        var y = anchor.CenterY - h * 0.5;
+        var x = px - fx * w;
+        var y = py - fy * h;
 
         x = Math.Clamp(x, 0, Math.Max(0, imgW - w));
         y = Math.Clamp(y, 0, Math.Max(0, imgH - h));

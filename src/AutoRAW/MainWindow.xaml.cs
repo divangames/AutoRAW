@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 using AutoRAW.Helpers;
 using AutoRAW.Models;
@@ -154,8 +155,14 @@ public partial class MainWindow : Window
     private void Vm_ProfileMenuInvalidated(object? sender, EventArgs e) =>
         RebuildProfileSubmenu();
 
-    private void ProductSubmenu_OnSubmenuOpened(object sender, RoutedEventArgs e) =>
+    private void ProductSubmenu_OnSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        // Не пересобирать при открытии вложенного «Фотограф» — иначе меню схлопывается.
+        if (!ReferenceEquals(e.Source, MenuProfileRoot))
+            return;
+
         RebuildProfileSubmenu();
+    }
 
     private void RebuildProfileSubmenu()
     {
@@ -165,16 +172,32 @@ public partial class MainWindow : Window
         var menu = MenuProfileRoot;
         menu.Items.Clear();
 
-        foreach (var p in vm.AllProducts)
+        var draft = vm.AllProducts.FirstOrDefault(p => p.IsDraft);
+        if (draft is not null)
         {
-            var prefix = ReferenceEquals(vm.SelectedProduct, p) ? "✓ " : "";
+            var draftPrefix = ReferenceEquals(vm.SelectedProduct, draft) ? "✓ " : "";
             menu.Items.Add(new MenuItem
             {
-                Header = prefix + p.DisplayName,
+                Header = draftPrefix + draft.DisplayName,
                 Command = vm.SelectProductCommand,
-                CommandParameter = p
+                CommandParameter = draft
             });
+            menu.Items.Add(new Separator());
         }
+
+        var standardMenu = new MenuItem { Header = "Стандартные", StaysOpenOnClick = true };
+        foreach (var p in vm.StandardMenuProfiles)
+            standardMenu.Items.Add(CreateProfileMenuItem(vm, p));
+        if (standardMenu.Items.Count == 0)
+            standardMenu.Items.Add(new MenuItem { Header = "(нет)", IsEnabled = false });
+        menu.Items.Add(standardMenu);
+
+        var userMenu = new MenuItem { Header = "Пользовательские", StaysOpenOnClick = true };
+        foreach (var p in vm.UserMenuProfiles)
+            userMenu.Items.Add(CreateProfileMenuItem(vm, p));
+        if (userMenu.Items.Count == 0)
+            userMenu.Items.Add(new MenuItem { Header = "(нет)", IsEnabled = false });
+        menu.Items.Add(userMenu);
 
         menu.Items.Add(new Separator());
         menu.Items.Add(new MenuItem
@@ -188,4 +211,16 @@ public partial class MainWindow : Window
             Command = vm.OpenUserProfilesFolderCommand
         });
     }
+
+    private static MenuItem CreateProfileMenuItem(MainViewModel vm, ProductProfile p)
+    {
+        var prefix = ReferenceEquals(vm.SelectedProduct, p) ? "✓ " : "";
+        return new MenuItem
+        {
+            Header = prefix + p.DisplayName,
+            Command = vm.SelectProductCommand,
+            CommandParameter = p
+        };
+    }
+
 }

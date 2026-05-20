@@ -67,6 +67,27 @@ public partial class MainViewModel : ObservableObject
         ?? AllProducts.FirstOrDefault(p => !p.IsDraft)
         ?? ProductProfile.BuiltInSneakers;
 
+    /// <summary>Стандартные профили (Кроссовки и <c>profiles\</c> рядом с exe).</summary>
+    public IEnumerable<ProductProfile> StandardMenuProfiles =>
+        AllProducts.Where(p => !p.IsDraft && !AppPaths.IsUserInstallProfile(p));
+
+    /// <summary>Профили пользователя из %LocalAppData%.</summary>
+    public IEnumerable<ProductProfile> UserMenuProfiles =>
+        AllProducts.Where(p => !p.IsDraft && AppPaths.IsUserInstallProfile(p));
+
+    public void NotifyUserProfileAdded(ProductProfile profile)
+    {
+        RemoveDraftFromList();
+        _draftSourceProfile = null;
+        ReloadCustomProfilesFromDisk();
+        var pick = AllProducts.FirstOrDefault(p =>
+            !p.IsDraft && p.DisplayName.Equals(profile.DisplayName, StringComparison.OrdinalIgnoreCase));
+        SelectedProduct = pick ?? profile;
+        ApplyProductFolders();
+        AppendLog($"Профиль «{profile.DisplayName}»: %LocalAppData%\\AutoRAW\\user files\\Profile\\{UserProfileBundleService.SanitizeFolderName(profile.DisplayName)}");
+        InvalidateProfileMenu();
+    }
+
     /// <summary>Число элементов в начале списка: встроенные/из комплекта, до черновика или первого пользовательского профиля.</summary>
     private int CountLeadingNonDraftCatalogProfiles()
     {
@@ -95,6 +116,9 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<ProductProfile> AllProducts { get; } = new();
 
     [ObservableProperty] private ProductProfile _selectedProduct = ProductProfile.BuiltInSneakers;
+
+    /// <summary>Сопоставление съёмки (меню «Профиль → Фотограф»).</summary>
+    [ObservableProperty] private PhotographerKind _selectedPhotographer = PhotographerPreferenceStore.Get();
 
     /// <summary>Расширенный интерфейс (таблица, превью, ручные пути).</summary>
     [ObservableProperty] private bool _isAdvancedView;
@@ -240,7 +264,11 @@ public partial class MainViewModel : ObservableObject
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnInputFolderChanged(string value) => RebuildMappingRows();
+    partial void OnInputFolderChanged(string value)
+    {
+        RebuildMappingRows();
+        OpenVisualShotEditorCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnAnalysisMaxEdgeChanged(double value) => SchedulePreviewRefresh();
 
@@ -336,6 +364,50 @@ public partial class MainViewModel : ObservableObject
             else if (UiTheme == AppUiTheme.System)
                 OnPropertyChanged(nameof(IsThemeMenuSystem));
         }
+    }
+
+    public bool IsPhotographerStandard
+    {
+        get => SelectedPhotographer == PhotographerKind.Standard;
+        set
+        {
+            if (value)
+                ApplyPhotographer(PhotographerKind.Standard);
+            else if (SelectedPhotographer == PhotographerKind.Standard)
+                OnPropertyChanged(nameof(IsPhotographerStandard));
+        }
+    }
+
+    public bool IsPhotographerRuslan
+    {
+        get => SelectedPhotographer == PhotographerKind.Ruslan;
+        set
+        {
+            if (value)
+                ApplyPhotographer(PhotographerKind.Ruslan);
+            else if (SelectedPhotographer == PhotographerKind.Ruslan)
+                OnPropertyChanged(nameof(IsPhotographerRuslan));
+        }
+    }
+
+    public bool IsPhotographerMasha
+    {
+        get => SelectedPhotographer == PhotographerKind.Masha;
+        set
+        {
+            if (value)
+                ApplyPhotographer(PhotographerKind.Masha);
+            else if (SelectedPhotographer == PhotographerKind.Masha)
+                OnPropertyChanged(nameof(IsPhotographerMasha));
+        }
+    }
+
+    partial void OnSelectedPhotographerChanged(PhotographerKind value)
+    {
+        OnPropertyChanged(nameof(IsPhotographerStandard));
+        OnPropertyChanged(nameof(IsPhotographerRuslan));
+        OnPropertyChanged(nameof(IsPhotographerMasha));
+        RebuildMappingRows();
     }
 
     partial void OnSelectedProductChanged(ProductProfile value)
@@ -499,6 +571,20 @@ public partial class MainViewModel : ObservableObject
         SaveColorProfileSettings(dlg.ResultSettings);
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenVisualShotEditor))]
+    private void OpenVisualShotEditor()
+    {
+        var w = new VisualShotEditorWindow
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+            DataContext = new VisualShotEditorViewModel(this, _dispatcher)
+        };
+        w.Show();
+    }
+
+    private bool CanOpenVisualShotEditor() =>
+        !string.IsNullOrWhiteSpace(InputFolder) && Directory.Exists(InputFolder.Trim());
+
     private void ApplyProductFolders()
     {
         if (SelectedProduct.IsDraft)
@@ -575,6 +661,9 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Пересобрать очередь после изменения списка пропущенных папок в редакторе.</summary>
+    public void RebuildMappingRowsFromEditor() => RebuildMappingRows();
+
     private void RebuildMappingRows()
     {
         SelectedMappingRow = null;
@@ -588,10 +677,70 @@ public partial class MainViewModel : ObservableObject
         }
 
         var def = DefaultReferenceForNewRow();
-        foreach (var path in ImageFileCatalog.ListImagesRecursive(InputFolder))
+        var refNames = ReferenceFiles.ToList();
+        var paths = ImageFileCatalog.ListImagesRecursive(InputFolder);
+        var ignored = EditorIgnoredFoldersStore.GetIgnoredFolders(InputFolder);
+        if (ignored.Count > 0)
         {
-            var matched = ReferenceNameMatcher.TryMatch(path, ReferenceFiles) ?? def;
-            MappingRows.Add(new CropMappingRowViewModel(path, matched, OnMappingRowChanged));
+            paths = paths
+                .Where(p => !EditorIgnoredFoldersStore.IsUnderIgnoredFolder(InputFolder, p, ignored))
+                .ToList();
+        }
+
+        if (SelectedPhotographer == PhotographerKind.Standard)
+        {
+            foreach (var group in paths
+                         .GroupBy(p => Path.GetDirectoryName(Path.GetFullPath(p))!)
+                         .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var ordered = group.OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+                for (var i = 0; i < ordered.Count; i++)
+                {
+                    var path = ordered[i];
+                    var row = new CropMappingRowViewModel(path, def, OnMappingRowChanged);
+                    PhotographerMappingService.ApplyStandardRow(row, i + 1, refNames, def);
+                    MappingRows.Add(row);
+                }
+            }
+        }
+        else if (SelectedPhotographer == PhotographerKind.Ruslan)
+        {
+            foreach (var group in paths
+                         .GroupBy(p => Path.GetDirectoryName(Path.GetFullPath(p))!)
+                         .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var withShot = new List<(int Shot, string Path)>();
+                var withoutShot = new List<string>();
+
+                foreach (var path in group)
+                {
+                    if (InputShotNumberParser.TryParse(path, out var shot))
+                        withShot.Add((shot, path));
+                    else
+                        withoutShot.Add(path);
+                }
+
+                foreach (var item in withShot.OrderBy(x => x.Shot).ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase))
+                {
+                    var row = new CropMappingRowViewModel(item.Path, def, OnMappingRowChanged);
+                    PhotographerMappingService.ApplyRuslanRow(row, item.Shot, refNames, def);
+                    MappingRows.Add(row);
+                }
+
+                foreach (var path in withoutShot.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                {
+                    var matched = ReferenceNameMatcher.TryMatch(path, refNames) ?? def;
+                    MappingRows.Add(new CropMappingRowViewModel(path, matched, OnMappingRowChanged));
+                }
+            }
+        }
+        else
+        {
+            foreach (var path in paths)
+            {
+                var matched = ReferenceNameMatcher.TryMatch(path, refNames) ?? def;
+                MappingRows.Add(new CropMappingRowViewModel(path, matched, OnMappingRowChanged));
+            }
         }
 
         SelectedMappingRow = MappingRows.FirstOrDefault();
@@ -599,6 +748,28 @@ public partial class MainViewModel : ObservableObject
         NotifyBatchCommandsChanged();
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
         SchedulePreviewRefresh();
+    }
+
+    private void ApplyPhotographer(PhotographerKind photographer)
+    {
+        if (SelectedPhotographer == photographer)
+            return;
+
+        SelectedPhotographer = photographer;
+        PhotographerPreferenceStore.Set(photographer);
+
+        switch (photographer)
+        {
+            case PhotographerKind.Standard:
+                AppendLog("Фотограф: Стандартный — порядок в папке: 1→01, 2→02, … 8→08.");
+                break;
+            case PhotographerKind.Ruslan:
+                AppendLog("Фотограф: Руслан — номер кадра из имени файла (1→01, 2→02, … 8→08; тип3, 3.NEF).");
+                break;
+            default:
+                AppendLog("Фотограф: Маша — сопоставление по имени файла и референса.");
+                break;
+        }
     }
 
     [RelayCommand]
@@ -684,14 +855,7 @@ public partial class MainViewModel : ObservableObject
         if (dlg.ShowDialog() != true || dlg.ResultProfile is null)
             return;
 
-        RemoveDraftFromList();
-        _draftSourceProfile = null;
-        ReloadCustomProfilesFromDisk();
-        var pick = AllProducts.FirstOrDefault(p =>
-            !p.IsDraft && p.DisplayName.Equals(dlg.ResultProfile.DisplayName, StringComparison.OrdinalIgnoreCase));
-        SelectedProduct = pick ?? dlg.ResultProfile;
-        AppendLog($"Профиль «{dlg.ResultProfile.DisplayName}»: %LocalAppData%\\AutoRAW\\user files\\Profile\\{UserProfileBundleService.SanitizeFolderName(dlg.ResultProfile.DisplayName)}");
-        InvalidateProfileMenu();
+        NotifyUserProfileAdded(dlg.ResultProfile);
     }
 
     [RelayCommand]
@@ -1113,26 +1277,20 @@ public partial class MainViewModel : ObservableObject
         if (MappingRows.Count == 0)
             return false;
 
-        bool hasZona = Directory.Exists(ZonaFolder);
-
         foreach (var row in MappingRows)
         {
             if (!File.Exists(row.InputPath))
                 return false;
 
-            // Если задана папка zona (технология Zona) — референс для строки необязателен
-            if (!hasZona)
-            {
-                if (!Directory.Exists(ReferenceFolder))
-                    return false;
+            if (!Directory.Exists(ReferenceFolder))
+                return false;
 
-                if (string.IsNullOrWhiteSpace(row.SelectedReferenceFile))
-                    return false;
+            if (string.IsNullOrWhiteSpace(row.SelectedReferenceFile))
+                return false;
 
-                var refPath = Path.Combine(ReferenceFolder, row.SelectedReferenceFile);
-                if (!File.Exists(refPath))
-                    return false;
-            }
+            var refPath = Path.Combine(ReferenceFolder, row.SelectedReferenceFile);
+            if (!File.Exists(refPath))
+                return false;
         }
 
         return true;
@@ -1233,29 +1391,28 @@ public partial class MainViewModel : ObservableObject
         var explicitOut = string.IsNullOrWhiteSpace(OutputFolder) ? null : OutputFolder.Trim();
         var inputRoot = Path.GetFullPath(InputFolder);
 
-        var pairs = MappingRows
-            .Select(r =>
-            {
-                var refPath = hasRef && !string.IsNullOrWhiteSpace(r.SelectedReferenceFile)
-                    ? Path.Combine(ReferenceFolder, r.SelectedReferenceFile)
-                    : r.InputPath;
-                return (r.InputPath, refPath);
-            })
-            .ToList();
+        var jobs = PhotographerMappingService.ToBatchJobs(MappingRows, ReferenceFolder, hasRef, SelectedProduct.DisplayName);
 
         _batchRun.Begin();
         IsBatchPaused = false;
         IsBatchComplete = false;
-        BatchProgressMaximum = pairs.Count;
+        BatchProgressMaximum = jobs.Count;
         BatchProgressValue = 0;
-        BatchStatusText = pairs.Count > 0 ? $"0/{pairs.Count}" : string.Empty;
+        BatchStatusText = jobs.Count > 0 ? $"0/{jobs.Count}" : string.Empty;
         IsBusy = true;
         try
         {
-            AppendLog(hasZona
-                ? $"Старт пакета (технология Zona, папка {ZonaFolder})…"
-                : "Старт пакета (reference-кроп)…");
-            AppendLog($"Вход: {inputRoot} (включая вложенные папки, файлов: {pairs.Count}).");
+            AppendLog("Старт пакета (полный кадр + референс + ручные правки)…");
+            AppendLog($"Вход: {inputRoot} (включая вложенные папки, файлов: {jobs.Count}).");
+            switch (SelectedPhotographer)
+            {
+                case PhotographerKind.Standard:
+                    AppendLog("Режим фотографа: Стандартный (порядок в папке → 01…08).");
+                    break;
+                case PhotographerKind.Ruslan:
+                    AppendLog("Режим фотографа: Руслан (номер в имени файла → 01…08).");
+                    break;
+            }
 
             var formatDir = SaveAsWebP ? "webp" : "jpg";
             if (explicitOut is null)
@@ -1279,7 +1436,7 @@ public partial class MainViewModel : ObservableObject
             var result = await Task.Run(() =>
             {
                 return _batch.RunMappings(
-                    pairs,
+                    jobs,
                     inputRoot,
                     explicitOut,
                     edge,
@@ -1414,16 +1571,6 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            bool hasZona = Directory.Exists(ZonaFolder);
-            var stem = Path.GetFileNameWithoutExtension(row.InputPath);
-
-            string? zonaPath = hasZona
-                ? Directory.EnumerateFiles(ZonaFolder)
-                    .FirstOrDefault(f =>
-                        string.Equals(Path.GetFileNameWithoutExtension(f), stem, StringComparison.OrdinalIgnoreCase)
-                        && ImageFileCatalog.IsImageFile(f))
-                : null;
-
             string? refPath = null;
             if (!string.IsNullOrWhiteSpace(ReferenceFolder) && !string.IsNullOrWhiteSpace(row.SelectedReferenceFile))
             {
@@ -1432,18 +1579,20 @@ public partial class MainViewModel : ObservableObject
                     refPath = rp;
             }
 
-            if (zonaPath is null && refPath is null)
+            if (refPath is null)
             {
                 ClearPreviewImages();
                 return;
             }
 
-            await SetPreviewLoadingUiAsync(true, "Загрузка изображений и расчёт кропа…");
+            await SetPreviewLoadingUiAsync(true, "Загрузка изображений и расчёт кадра…");
 
             var edge = (int)Math.Clamp(Math.Round(AnalysisMaxEdge), 256, 8192);
             const int thumb = 520;
             var color = GetEffectiveColorFor(SelectedProduct);
             var applyColor = ApplyColorCorrection;
+            var profileName = SelectedProduct.DisplayName;
+            var zonaDir = Directory.Exists(ZonaFolder) ? ZonaFolder : null;
 
             try
             {
@@ -1453,17 +1602,12 @@ public partial class MainViewModel : ObservableObject
 
                 await Task.Run(() =>
                 {
-                    r = zonaPath is not null
-                        ? CropPreviewBitmapFactory.LoadThumbnail(zonaPath, thumb)
-                        : (refPath is not null ? CropPreviewBitmapFactory.LoadThumbnail(refPath, thumb) : null);
-
+                    r = CropPreviewBitmapFactory.LoadThumbnail(refPath, thumb);
                     b = CropPreviewBitmapFactory.LoadThumbnail(row.InputPath, thumb);
 
-                    a = zonaPath is not null && refPath is not null
-                        ? CropPreviewBitmapFactory.LoadZonaCroppedPreview(row.InputPath, zonaPath, refPath, edge, thumb, color, applyColor)
-                        : (refPath is not null
-                            ? CropPreviewBitmapFactory.LoadCroppedPreview(row.InputPath, refPath, edge, thumb, color, applyColor)
-                            : null);
+                    a = CropPreviewBitmapFactory.LoadCroppedPreview(
+                        row.InputPath, refPath, edge, thumb, color, applyColor,
+                        row.RotateCounterClockwise90, row.OutputFileStem, zonaDir, profileName);
                 });
 
                 PreviewReference = r;

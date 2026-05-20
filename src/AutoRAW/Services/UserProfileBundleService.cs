@@ -183,6 +183,125 @@ public static class UserProfileBundleService
             Directory.Delete(path, recursive: true);
     }
 
+    /// <summary>
+    /// Импорт из папки профиля: полный bundle в AppData, манифест из <c>profiles\slug</c> с данными рядом с exe,
+    /// или каталоги <c>reference</c> / <c>zona</c> (с подпапкой по имени или без).
+    /// </summary>
+    public static ProductProfile ImportFromDirectory(string sourceDir, string displayName)
+    {
+        EnsureDirectories();
+        if (!Directory.Exists(sourceDir))
+            throw new DirectoryNotFoundException(sourceDir);
+
+        sourceDir = Path.GetFullPath(sourceDir.Trim());
+        displayName = displayName.Trim();
+        if (string.IsNullOrWhiteSpace(displayName))
+            throw new ArgumentException("Укажите имя профиля.");
+
+        var color = ReadColorFromManifest(sourceDir);
+
+        if (File.Exists(Path.Combine(sourceDir, "profile.json"))
+            && Directory.Exists(Path.Combine(sourceDir, "reference"))
+            && Directory.Exists(Path.Combine(sourceDir, "zona")))
+        {
+            if (TryLoadBundle(sourceDir) is { } bundle)
+                return WriteBundle(displayName, bundle.ReferenceFolder, bundle.ZonaFolder, color);
+        }
+
+        if (File.Exists(Path.Combine(sourceDir, "profile.json"))
+            && TryResolveShippedAssetDirs(sourceDir, out var shippedRef, out var shippedZona))
+            return WriteBundle(displayName, shippedRef, shippedZona, color);
+
+        if (TryFindReferenceAndZonaDirs(sourceDir, displayName, out var refDir, out var zonaDir)
+            && !string.IsNullOrEmpty(refDir)
+            && !string.IsNullOrEmpty(zonaDir))
+            return WriteBundle(displayName, refDir, zonaDir, color);
+
+        throw new InvalidOperationException(
+            "Не удалось распознать профиль: нужны папки reference и zona (или profile.json с данными рядом с программой).");
+    }
+
+    private static ColorCorrectionSettings ReadColorFromManifest(string sourceDir)
+    {
+        try
+        {
+            var manifestPath = Path.Combine(sourceDir, "profile.json");
+            if (!File.Exists(manifestPath))
+                return ColorCorrectionSettings.Neutral;
+
+            var json = File.ReadAllText(manifestPath);
+            var m = JsonSerializer.Deserialize<Manifest>(json, JsonOptions);
+            return m?.Color is null
+                ? ColorCorrectionSettings.Neutral
+                : ColorCorrectionSettings.FromDto(m.Color);
+        }
+        catch
+        {
+            return ColorCorrectionSettings.Neutral;
+        }
+    }
+
+    private static bool TryResolveShippedAssetDirs(string manifestDir, out string refDir, out string zonaDir)
+    {
+        var slug = Path.GetFileName(manifestDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        refDir = Path.Combine(AppPaths.AppRoot, "reference", slug);
+        zonaDir = Path.Combine(AppPaths.AppRoot, "zona", slug);
+        return Directory.Exists(refDir) && Directory.Exists(zonaDir);
+    }
+
+    private static bool TryFindReferenceAndZonaDirs(string sourceDir, string displayName, out string refDir, out string zonaDir)
+    {
+        refDir = string.Empty;
+        zonaDir = string.Empty;
+        var slug = SanitizeFolderName(displayName);
+
+        var nestedRef = Path.Combine(sourceDir, "reference", slug);
+        var nestedZona = Path.Combine(sourceDir, "zona", slug);
+        if (Directory.Exists(nestedRef) && Directory.Exists(nestedZona))
+        {
+            refDir = nestedRef;
+            zonaDir = nestedZona;
+            return true;
+        }
+
+        var flatRef = Path.Combine(sourceDir, "reference");
+        var flatZona = Path.Combine(sourceDir, "zona");
+        if (Directory.Exists(flatRef) && Directory.Exists(flatZona))
+        {
+            refDir = flatRef;
+            zonaDir = flatZona;
+            return true;
+        }
+
+        if (Directory.EnumerateFiles(sourceDir).Any(ImageFileCatalog.IsImageFile))
+        {
+            var parent = Path.GetDirectoryName(sourceDir);
+            if (parent is null)
+                return false;
+
+            if (string.Equals(Path.GetFileName(sourceDir), "reference", StringComparison.OrdinalIgnoreCase))
+            {
+                var zonaSlug = Path.Combine(parent, "zona", slug);
+                if (Directory.Exists(zonaSlug))
+                {
+                    refDir = sourceDir;
+                    zonaDir = zonaSlug;
+                    return true;
+                }
+
+                var zonaFlat = Path.Combine(parent, "zona");
+                if (Directory.Exists(zonaFlat))
+                {
+                    refDir = sourceDir;
+                    zonaDir = zonaFlat;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Старый products.json в AppData — импорт в user files\Profile (один раз).</summary>
     public static void MigrateLegacyAppDataProductsJsonIfNeeded()
     {

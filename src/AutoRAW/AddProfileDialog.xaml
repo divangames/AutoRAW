@@ -4,8 +4,8 @@
         Title="Новый профиль"
         WindowStartupLocation="CenterOwner"
         SizeToContent="Height"
-        Width="500"
-        MinHeight="360"
+        Width="480"
+        MinHeight="220"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         Background="{DynamicResource Theme.WindowBg}"
@@ -13,69 +13,21 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
     <StackPanel>
 
+      <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Theme.TextSubtle}" Margin="0,0,0,12"
+                 Text="Укажите папку с профилем (profile.json и reference/zona, или каталог из profiles проекта). Профиль будет скопирован в %LocalAppData%\AutoRAW\user files\Profile." />
+
       <TextBlock Text="Имя профиля" FontWeight="SemiBold" Margin="0,0,0,4" />
-      <TextBox x:Name="ProfileNameBox" Margin="0,0,0,14" Text="Новый профиль" />
+      <TextBox x:Name="ProfileNameBox" Margin="0,0,0,14" />
 
-      <TextBlock Text="Папка с референсами" FontWeight="SemiBold" Margin="0,0,0,4" />
-      <Grid Margin="0,0,0,14">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <TextBox x:Name="RefPathBox" Grid.Column="0" Margin="0,0,8,0" VerticalContentAlignment="Center" />
-        <Button Grid.Column="1" Content="Обзор…" Padding="10,4" Click="BrowseRef" />
-      </Grid>
-
-      <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Theme.TextSubtle}" Margin="0,0,0,8"
-                 Text="Каталог `zona` на диске — маркёры технологии «Zona» (красная зона на снимке). Подробности — в Справка → Инструкция." />
-      <TextBlock Text="Папка Zona (каталог zona)" FontWeight="SemiBold" Margin="0,0,0,4" />
+      <TextBlock Text="Папка профиля" FontWeight="SemiBold" Margin="0,0,0,4" />
       <Grid Margin="0,0,0,16">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBox x:Name="ZonaPathBox" Grid.Column="0" Margin="0,0,8,0" VerticalContentAlignment="Center" />
-        <Button Grid.Column="1" Content="Обзор…" Padding="10,4" Click="BrowseZona" />
+        <TextBox x:Name="ProfileFolderBox" Grid.Column="0" Margin="0,0,8,0" VerticalContentAlignment="Center" />
+        <Button Grid.Column="1" Content="Обзор…" Padding="10,4" Click="BrowseProfileFolder" />
       </Grid>
-
-      <GroupBox Header="Цветовой профиль (.xmp)" Padding="10" Margin="0,0,0,14">
-        <StackPanel>
-          <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource Theme.TextSubtle}" Margin="0,0,0,8"
-                     Text="Загрузите XMP-пресет Lightroom / Camera Raw. Если не выбрать — цветокоррекция не применяется." />
-
-          <!-- Выбор XMP -->
-          <Grid Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBox x:Name="XmpPathBox"
-                     Grid.Column="0"
-                     Margin="0,0,8,0"
-                     IsReadOnly="True"
-                     VerticalContentAlignment="Center"
-                     Background="{DynamicResource Theme.FieldReadonlyBg}"
-                     Text="(файл не выбран)" />
-            <Button Grid.Column="1" Content="Загрузить .xmp…" Padding="10,4" Click="BrowseXmp" />
-          </Grid>
-
-          <!-- Краткая сводка параметров -->
-          <Border x:Name="XmpSummaryBorder"
-                  Background="{DynamicResource Theme.InfoPanelBg}" BorderBrush="{DynamicResource Theme.InfoPanelBorder}" BorderThickness="1"
-                  CornerRadius="4" Padding="10,8"
-                  Visibility="Collapsed">
-            <TextBlock x:Name="XmpSummaryBlock"
-                       FontSize="12"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource Theme.TextBody}" />
-          </Border>
-
-          <CheckBox x:Name="StdColorCheck"
-                    Margin="0,10,0,0"
-                    Content="Стандартный цветовой профиль (sRGB, без встроенного ICC)"
-                    IsChecked="True" />
-        </StackPanel>
-      </GroupBox>
 
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
         <Button MinWidth="96" Margin="0,0,8,0" IsDefault="True" Content="OK" Padding="12,6" Click="OkClick" />

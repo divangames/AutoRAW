@@ -11,6 +11,9 @@ public static class ImageFileCatalog
 
     public static bool IsImageFile(string path)
     {
+        if (ShotLineGuideParser.IsLineGuideFile(path))
+            return false;
+
         var ext = Path.GetExtension(path);
         return Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }

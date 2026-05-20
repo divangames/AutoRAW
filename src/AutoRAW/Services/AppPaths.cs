@@ -96,6 +96,9 @@ public static class AppPaths
     private static string RoamingRoot =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AutoRAW");
 
+    /// <summary>Ручные правки кадра (%AppData%\AutoRAW\manual_shot_adjust.json).</summary>
+    public static string ManualShotAdjustStoreFile => Path.Combine(RoamingRoot, "manual_shot_adjust.json");
+
     /// <summary>Файл пользовательских товаров (старый формат, до миграции).</summary>
     public static string CustomProductsFile => Path.Combine(RoamingRoot, "products.json");
 
@@ -108,6 +111,9 @@ public static class AppPaths
 
     /// <summary>Тема интерфейса: «Вид → Тема».</summary>
     public static string ThemePreferencesFile => Path.Combine(RoamingRoot, "theme_prefs.json");
+
+    /// <summary>Фотограф для сопоставления съёмки: «Профиль → Фотограф».</summary>
+    public static string PhotographerPreferencesFile => Path.Combine(RoamingRoot, "photographer_prefs.json");
 
     public static string TelegramZonaPreferencesFile => Path.Combine(RoamingRoot, "telegram_zona.json");
 

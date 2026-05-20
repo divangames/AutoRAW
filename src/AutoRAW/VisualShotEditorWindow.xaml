@@ -1,0 +1,248 @@
+<Window x:Class="AutoRAW.VisualShotEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Name="Root"
+        Title="Редактор положения кадра"
+        Width="960"
+        Height="700"
+        MinWidth="800"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Theme.WindowBg}"
+        FontFamily="Segoe UI"
+        FontSize="12">
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+  </Window.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled"
+                Padding="0">
+    <DockPanel Margin="12">
+    <TextBlock DockPanel.Dock="Top"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource Theme.TextSubtle}"
+               Margin="0,0,0,8">
+      Папки из «Товар» (главное окно) → файлы → полный кадр подгоняется под размер референса (как будет на выходе). Референс — из профиля. Сетка и Zona-маркёры в кропе не участвуют; сетка только на превью.
+    </TextBlock>
+
+    <Grid>
+      <Grid Visibility="{Binding IsBrowseMode, Converter={StaticResource BoolToVis}}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="200" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <DockPanel Grid.Column="0" Margin="0,0,12,0">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.TextPrimary}"
+                       Text="Папка" VerticalAlignment="Center" />
+            <Button Content="Пропустить"
+                    Margin="8,0,0,0"
+                    Padding="8,3"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Command="{Binding IgnoreSelectedFolderCommand}"
+                    ToolTip="Исключить выбранную подпапку из очереди обработки" />
+            <Button Content="Вернуть"
+                    Margin="6,0,0,0"
+                    Padding="8,3"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Command="{Binding RestoreSelectedFolderCommand}"
+                    ToolTip="Снова включить подпапку в очередь" />
+          </StackPanel>
+          <ListBox ItemsSource="{Binding Folders}"
+                   SelectedItem="{Binding SelectedFolder}"
+                   DisplayMemberPath="ListLabel"
+                   BorderBrush="{DynamicResource Theme.DialogBorder}"
+                   Background="{DynamicResource Theme.DialogBg}" />
+        </DockPanel>
+        <DockPanel Grid.Column="1">
+          <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6" Foreground="{DynamicResource Theme.TextPrimary}"
+                     Text="Файлы" />
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding FilesInFolder}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Width="108"
+                          Height="108"
+                          Margin="4"
+                          BorderBrush="{DynamicResource Theme.DialogBorder}"
+                          BorderThickness="1"
+                          CornerRadius="4"
+                          Background="{DynamicResource Theme.DialogBg}"
+                          Cursor="Hand"
+                          MouseLeftButtonUp="Thumb_OnMouseLeftButtonUp">
+                    <Border.ToolTip>
+                      <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" MaxWidth="360" />
+                    </Border.ToolTip>
+                    <Grid>
+                      <Image Source="{Binding Thumbnail}"
+                             Stretch="UniformToFill"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
+                      <Border Background="#AA000000"
+                              VerticalAlignment="Bottom"
+                              Opacity="0">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Style.Triggers>
+                              <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="1" />
+                              </Trigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <TextBlock Text="Открыть"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,4"
+                                   FontWeight="SemiBold" />
+                      </Border>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Grid>
+
+      <Grid>
+        <Grid.Style>
+          <Style TargetType="Grid">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsBrowseMode}" Value="False">
+                <Setter Property="Visibility" Value="Visible" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Grid.Style>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="False">
+          <Button DockPanel.Dock="Left"
+                  Content="← К списку файлов"
+                  Style="{StaticResource SecondaryButtonStyle}"
+                  Padding="10,6"
+                  Margin="0,0,12,0"
+                  Command="{Binding BackToBrowseCommand}" />
+          <TextBlock VerticalAlignment="Center"
+                     Foreground="{DynamicResource Theme.TextBody}"
+                     TextTrimming="CharacterEllipsis">
+            <Run Text="Файл: " />
+            <Run Text="{Binding EditorInputPath, Mode=OneWay}" FontWeight="SemiBold" />
+          </TextBlock>
+        </DockPanel>
+
+        <Grid Grid.Row="1">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="280" />
+          </Grid.ColumnDefinitions>
+
+          <DockPanel Grid.Column="0" Margin="0,0,12,0">
+            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6"
+                       Foreground="{DynamicResource Theme.TextPrimary}"
+                       Text="Результат (тащите мышью — смещение X/Y в px выхода)" />
+            <Border BorderBrush="{DynamicResource Theme.DialogBorder}"
+                    BorderThickness="1"
+                    Background="#202020"
+                    CornerRadius="4"
+                    ClipToBounds="True">
+              <Image x:Name="ResultImage"
+                     Source="{Binding ResultPreview}"
+                     Stretch="Uniform"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     MouseLeftButtonDown="ResultImage_OnMouseLeftButtonDown"
+                     MouseMove="ResultImage_OnMouseMove"
+                     MouseLeftButtonUp="ResultImage_OnMouseLeftButtonUp"
+                     MouseLeave="ResultImage_OnMouseLeave" />
+            </Border>
+          </DockPanel>
+
+          <DockPanel Grid.Column="1">
+            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6"
+                       Foreground="{DynamicResource Theme.TextPrimary}"
+                       Text="Референс" />
+            <Border DockPanel.Dock="Top"
+                    BorderBrush="{DynamicResource Theme.DialogBorder}"
+                    BorderThickness="1"
+                    Height="240"
+                    CornerRadius="4"
+                    Margin="0,0,0,12">
+              <Image Source="{Binding ReferencePreview}" Stretch="Uniform" />
+            </Border>
+
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+              <TextBlock Text="Номер кадра (референс / Zona)" Margin="0,0,0,4" Foreground="{DynamicResource Theme.TextBody}" />
+              <ComboBox ItemsSource="{Binding ShotStemChoices}"
+                        SelectedItem="{Binding SelectedShotStem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        MinHeight="28" />
+            </StackPanel>
+
+            <StackPanel>
+              <TextBlock Text="Смещение X (px)" Foreground="{DynamicResource Theme.TextBody}" />
+              <TextBox Text="{Binding OffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+              <TextBlock Text="Смещение Y (px)" Foreground="{DynamicResource Theme.TextBody}" />
+              <TextBox Text="{Binding OffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+              <TextBlock Text="Масштаб (%)" Foreground="{DynamicResource Theme.TextBody}" />
+              <TextBox Text="{Binding ZoomPercent, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+              <TextBlock Text="Поворот (°)" Foreground="{DynamicResource Theme.TextBody}" />
+              <TextBox Text="{Binding RotationDeg, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+            <TextBlock Text="Сетка выравнивания (только превью)" Foreground="{DynamicResource Theme.TextBody}" />
+            <ComboBox ItemsSource="{Binding GridOverlayOptions}"
+                      DisplayMemberPath="Display"
+                      SelectedValuePath="Kind"
+                      SelectedValue="{Binding GridOverlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      MinHeight="28"
+                      Margin="0,2,0,12" />
+
+              <Button Content="Сохранить как новый профиль…"
+                      Margin="0,0,0,6"
+                      Style="{StaticResource PrimaryActionButtonStyle}"
+                      Padding="12,8"
+                      Command="{Binding SaveAsNewProfileCommand}" />
+              <Button Content="Сохранить для профиля"
+                      Margin="0,0,0,6"
+                      Style="{StaticResource SecondaryButtonStyle}"
+                      Padding="12,8"
+                      Command="{Binding SaveForProfileCommand}" />
+              <Button Content="Только для этого товара (файла)"
+                      Margin="0,0,0,6"
+                      Style="{StaticResource SecondaryButtonStyle}"
+                      Padding="12,8"
+                      Command="{Binding SaveForThisFileOnlyCommand}" />
+              <Button Content="Сброс"
+                      Style="{StaticResource SecondaryButtonStyle}"
+                      Padding="12,8"
+                      Command="{Binding ResetAdjustmentsCommand}" />
+            </StackPanel>
+          </DockPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   Margin="0,8,0,0"
+                   Text="{Binding StatusText}"
+                   Foreground="{DynamicResource Theme.Accent}"
+                   TextWrapping="Wrap" />
+      </Grid>
+    </Grid>
+  </DockPanel>
+  </ScrollViewer>
+</Window>

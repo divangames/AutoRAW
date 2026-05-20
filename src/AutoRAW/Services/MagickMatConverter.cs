@@ -18,4 +18,11 @@ public static class MagickMatConverter
             throw new InvalidOperationException("Не удалось преобразовать изображение в Mat.");
         return mat;
     }
+
+    public static MagickImage ToMagickImage(Mat mat)
+    {
+        Cv2.ImEncode(".png", mat, out var buf);
+        using var ms = new MemoryStream(buf);
+        return new MagickImage(ms);
+    }
 }

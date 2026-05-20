@@ -5,7 +5,7 @@ using ImageMagick;
 
 namespace AutoRAW.Services;
 
-/// <summary>Превью для UI — те же декодирование и кроп, что и при экспорте.</summary>
+/// <summary>Превью для UI — тот же пайплайн, что пакетный экспорт: полный кадр + ручные правки → размер референса.</summary>
 public static class CropPreviewBitmapFactory
 {
     private const int MinEdge = 64;
@@ -24,33 +24,20 @@ public static class CropPreviewBitmapFactory
         }
     }
 
-    /// <summary>Построить превью результата кадрирования (масштаб только для экрана).</summary>
-    public static BitmapSource? LoadCroppedPreview(
+    /// <summary>Загрузка полного кадра как в редакторе/экспорте (ориентация по стему). Вызывающий обязан Dispose.</summary>
+    public static MagickImage? TryLoadPreparedFullForManualFrame(
         string inputPath,
-        string referencePath,
+        string? outputFileStem,
         int analysisMaxEdge,
-        int displayMaxEdge,
-        ColorCorrectionSettings? colorCorrection = null,
-        bool applyColorCorrection = false)
+        bool rotateCounterClockwise90 = false)
     {
         try
         {
-            var reference = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
-
-            using var full = RasterImageLoader.Load(inputPath);
-
-            var target = AutoCropComputation.AnalyzeTarget(full, analysisMaxEdge);
-            var crop = AutoCropComputation.ComputeCropBox(reference, target);
-            var (x, y, w, h) = CropGeometryService.ToIntegers(crop, (int)full.Width, (int)full.Height);
-
-            using var cropped = (MagickImage)full.Clone();
-            cropped.Crop(new MagickGeometry { X = x, Y = y, Width = (uint)w, Height = (uint)h });
-            cropped.ResetPage();
-            AutoCropComputation.ResizeToReferenceOutputSize(cropped, reference);
-            if (colorCorrection is not null)
-                ColorCorrectionService.ApplyIfEnabled(cropped, colorCorrection, applyColorCorrection);
-            FitLongEdge(cropped, displayMaxEdge);
-            return ToBitmapSource(cropped);
+            var full = RasterImageLoader.Load(inputPath);
+            if (rotateCounterClockwise90)
+                ImageTransformHelper.RotateCounterClockwise90(full);
+            ShotCropPolicy.ApplyPreCropOrientation(full, outputFileStem, analysisMaxEdge);
+            return full;
         }
         catch
         {
@@ -58,7 +45,89 @@ public static class CropPreviewBitmapFactory
         }
     }
 
-    /// <summary>Превью кропа по технологии «Zona» (красный маркёр на парном изображении).</summary>
+    /// <summary>Построить превью результата (масштаб только для экрана).</summary>
+    public static BitmapSource? LoadCroppedPreview(
+        string inputPath,
+        string referencePath,
+        int analysisMaxEdge,
+        int displayMaxEdge,
+        ColorCorrectionSettings? colorCorrection = null,
+        bool applyColorCorrection = false,
+        bool rotateCounterClockwise90 = false,
+        string? outputFileStem = null,
+        string? zonaFolder = null,
+        string? profileDisplayName = null,
+        ManualShotAdjust? manualAdjustOverride = null) =>
+        LoadCroppedPreviewWithSize(
+                inputPath,
+                referencePath,
+                analysisMaxEdge,
+                displayMaxEdge,
+                colorCorrection,
+                applyColorCorrection,
+                rotateCounterClockwise90,
+                outputFileStem,
+                zonaFolder,
+                profileDisplayName,
+                manualAdjustOverride)
+            .Bitmap;
+
+    /// <summary>Превью + размер кадра (до уменьшения для экрана).</summary>
+    public static (BitmapSource? Bitmap, int OutW, int OutH) LoadCroppedPreviewWithSize(
+        string inputPath,
+        string referencePath,
+        int analysisMaxEdge,
+        int displayMaxEdge,
+        ColorCorrectionSettings? colorCorrection = null,
+        bool applyColorCorrection = false,
+        bool rotateCounterClockwise90 = false,
+        string? outputFileStem = null,
+        string? zonaFolder = null,
+        string? profileDisplayName = null,
+        ManualShotAdjust? manualAdjustOverride = null)
+    {
+        try
+        {
+            var reference = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
+            var refW = (int)reference.RefW;
+            var refH = (int)reference.RefH;
+
+            using var full = RasterImageLoader.Load(inputPath);
+            if (rotateCounterClockwise90)
+                ImageTransformHelper.RotateCounterClockwise90(full);
+            ShotCropPolicy.ApplyPreCropOrientation(full, outputFileStem, analysisMaxEdge);
+
+            MagickImage? working = null;
+            try
+            {
+                working = BuildManualFramedOutput(
+                    full,
+                    inputPath,
+                    outputFileStem,
+                    zonaFolder,
+                    profileDisplayName,
+                    manualAdjustOverride,
+                    refW,
+                    refH);
+
+                if (colorCorrection is not null)
+                    ColorCorrectionService.ApplyIfEnabled(working, colorCorrection, applyColorCorrection);
+                FitLongEdge(working, displayMaxEdge);
+                return (ToBitmapSource(working), refW, refH);
+            }
+            finally
+            {
+                working?.Dispose();
+            }
+        }
+        catch
+        {
+            return (null, 0, 0);
+        }
+    }
+
+    /// <inheritdoc cref="LoadCroppedPreviewWithSize" />
+    /// <remarks>Параметры Zona оставлены для совместимости вызовов и игнорируются.</remarks>
     public static BitmapSource? LoadZonaCroppedPreview(
         string inputPath,
         string zonaPath,
@@ -66,27 +135,101 @@ public static class CropPreviewBitmapFactory
         int analysisMaxEdge,
         int displayMaxEdge,
         ColorCorrectionSettings? colorCorrection = null,
-        bool applyColorCorrection = false)
+        bool applyColorCorrection = false,
+        bool rotateCounterClockwise90 = false,
+        string? outputFileStem = null,
+        string? zonaFolder = null,
+        string? profileDisplayName = null,
+        ManualShotAdjust? manualAdjustOverride = null) =>
+        LoadCroppedPreview(
+            inputPath,
+            referencePath,
+            analysisMaxEdge,
+            displayMaxEdge,
+            colorCorrection,
+            applyColorCorrection,
+            rotateCounterClockwise90,
+            outputFileStem,
+            zonaFolder,
+            profileDisplayName,
+            manualAdjustOverride);
+
+    /// <inheritdoc cref="LoadCroppedPreviewWithSize" />
+    public static (BitmapSource? Bitmap, int OutW, int OutH) LoadZonaCroppedPreviewWithSize(
+        string inputPath,
+        string zonaPath,
+        string referencePath,
+        int analysisMaxEdge,
+        int displayMaxEdge,
+        ColorCorrectionSettings? colorCorrection = null,
+        bool applyColorCorrection = false,
+        bool rotateCounterClockwise90 = false,
+        string? outputFileStem = null,
+        string? zonaFolder = null,
+        string? profileDisplayName = null,
+        ManualShotAdjust? manualAdjustOverride = null) =>
+        LoadCroppedPreviewWithSize(
+            inputPath,
+            referencePath,
+            analysisMaxEdge,
+            displayMaxEdge,
+            colorCorrection,
+            applyColorCorrection,
+            rotateCounterClockwise90,
+            outputFileStem,
+            zonaFolder,
+            profileDisplayName,
+            manualAdjustOverride);
+
+    private static MagickImage BuildManualFramedOutput(
+        MagickImage full,
+        string inputPath,
+        string? outputFileStem,
+        string? zonaFolder,
+        string? profileDisplayName,
+        ManualShotAdjust? manualAdjustOverride,
+        int refW,
+        int refH)
     {
+        var adj = manualAdjustOverride ?? ManualShotAdjustStore.Resolve(profileDisplayName, inputPath, outputFileStem);
+        var working = ManualShotAdjustApplier.ComposeFromFullToReference(full, adj, refW, refH);
+        TryCompositeGrid(working, zonaFolder, adj.GridOverlay);
+        return working;
+    }
+
+    /// <summary>Сетка только для превью; экспорт без сетки.</summary>
+    public static void CompositeGridForEditorPreview(MagickImage working, string? zonaFolder, ZonaGridOverlayKind kind) =>
+        TryCompositeGrid(working, zonaFolder, kind);
+
+    private static void TryCompositeGrid(MagickImage working, string? zonaFolder, ZonaGridOverlayKind kind)
+    {
+        if (kind == ZonaGridOverlayKind.None)
+            return;
+
+        var path = ZonaGridOverlayPaths.TryResolve(zonaFolder, kind);
+        if (path is null)
+            return;
+
         try
         {
-            var zona = ZonaCropService.Detect(zonaPath);
-            if (zona is null)
-                return null;
+            using var grid = new MagickImage(path);
+            grid.FilterType = FilterType.Box;
+            grid.Resize(new MagickGeometry((uint)working.Width, (uint)working.Height));
+            if (!grid.HasAlpha)
+            {
+                grid.Alpha(AlphaOption.Set);
+                grid.Evaluate(Channels.Alpha, EvaluateOperator.Multiply, 0.45);
+            }
+            else
+            {
+                grid.Evaluate(Channels.Alpha, EvaluateOperator.Multiply, 0.45);
+            }
 
-            var reference = AutoCropComputation.AnalyzeReference(referencePath, analysisMaxEdge);
-
-            using var full = RasterImageLoader.Load(inputPath);
-            using var cropped = ZonaCropService.Crop(full, zona.Value);
-            AutoCropComputation.ResizeToReferenceOutputSize(cropped, reference);
-            if (colorCorrection is not null)
-                ColorCorrectionService.ApplyIfEnabled(cropped, colorCorrection, applyColorCorrection);
-            FitLongEdge(cropped, displayMaxEdge);
-            return ToBitmapSource(cropped);
+            working.Composite(grid, CompositeOperator.Over);
         }
         catch
         {
-            return null;
+            // превью без сетки
         }
     }
 
@@ -119,5 +262,20 @@ public static class CropPreviewBitmapFactory
         bmp.EndInit();
         bmp.Freeze();
         return bmp;
+    }
+
+    /// <summary>Клон, уменьшение по длинной стороне и PNG для UI (редактор).</summary>
+    public static BitmapSource? ToBitmapSourceScaled(MagickImage source, int displayMaxEdge)
+    {
+        try
+        {
+            using var copy = (MagickImage)source.Clone();
+            FitLongEdge(copy, displayMaxEdge);
+            return ToBitmapSource(copy);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

@@ -6,6 +6,7 @@
       <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="Themes/LogLineItemTemplate.xaml" />
         <ResourceDictionary Source="Themes/ZonaChatResources.xaml" />
+        <ResourceDictionary Source="Themes/CommonButtons.xaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
