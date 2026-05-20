@@ -30,7 +30,7 @@
 
 ### Презентация (веб)
 
-Одностраничный лендинг для инвесторов — папка **`presentation/`**. Локально: **`presentation/open.bat`** (пункт **1** — сервер `http://127.0.0.1:8765/`, **2** — деплой). После включения GitHub Pages в настройках репозитория (ветка **`gh-pages`**, корень): **https://divangames.github.io/AutoRAW/**
+Одностраничный лендинг для инвесторов — папка **`presentation/`**. Локально: **`presentation/open.bat`** (пункт **1** — сервер `http://127.0.0.1:8765/`, **2** — деплой). На GitHub: **Settings → Pages → Source: GitHub Actions**, workflow **Deploy presentation**; сайт: **https://divangames.github.io/AutoRAW/**
 
 <img width="640" height="360" alt="TG_description photo" src="https://github.com/user-attachments/assets/e7b48328-4d91-425e-8a26-506d51354758" />
 
