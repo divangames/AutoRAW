@@ -32,7 +32,6 @@ function initScrollSnap() {
 
   sections.forEach(s => io.observe(s));
 
-  // Trigger first section immediately
   if (sections[0]) {
     setTimeout(() => triggerSection(sections[0]), 200);
   }
@@ -43,14 +42,12 @@ function triggerSection(sec) {
   sec.dataset.triggered = '1';
   sec.classList.add('is-active');
 
-  // Apply stagger delays via inline style
   sec.querySelectorAll('[data-d]').forEach(el => {
     const delay = parseInt(el.dataset.d || '0', 10);
     el.style.animationDelay = delay + 'ms';
   });
 }
 
-// ── Scroll dots ──────────────────────────────
 function initScrollDots() {
   const wrap = document.getElementById('scrollWrap');
   if (!wrap) return;
@@ -70,7 +67,6 @@ function updateDots(idx) {
   });
 }
 
-// ── Reveal animations (re-trigger on revisit) ──
 function initRevealAnimations() {
   const wrap = document.getElementById('scrollWrap');
   if (!wrap) return;
@@ -78,7 +74,6 @@ function initRevealAnimations() {
   const io = new IntersectionObserver((entries) => {
     entries.forEach(e => {
       if (!e.isIntersecting) {
-        // Reset so animation plays again on scroll back
         e.target.dataset.triggered = '';
         e.target.classList.remove('is-active');
       }
@@ -88,7 +83,6 @@ function initRevealAnimations() {
   wrap.querySelectorAll('.snap-sec').forEach(s => io.observe(s));
 }
 
-// ── Nav burger ───────────────────────────────
 function initNavBurger() {
   const burger = document.getElementById('navBurger');
   const links  = document.querySelector('.nav-links');
@@ -106,7 +100,6 @@ function initNavBurger() {
     });
   });
 
-  // Mobile nav anchor scroll in wrap
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
       const id = a.getAttribute('href').slice(1);
@@ -120,7 +113,6 @@ function initNavBurger() {
   });
 }
 
-// ── Kinescope speed x2 ───────────────────────
 function initVideoSpeed() {
   const bindSpeed = (iframe) => {
     if (!iframe) return;
@@ -143,43 +135,41 @@ function initVideoSpeed() {
   bindSpeed(document.getElementById('ctaVideo'));
 }
 
-// ── Full chat conversation rotation ──────────
 function initTypingChat() {
   const container = document.getElementById('chatMessages');
   if (!container) return;
 
-  // Complete conversation scenarios
   const convos = [
     {
       msgs: [
-        { type: 'zona', text: '👋 Привет! Я ZONA — нейросеть в AutoRAW. Беру на себя рутину кадрирования, а ваш главный талант — снимать товар — остаётся только за вами.', time: '09:41' },
-        { type: 'zona', text: '🍬 Люблю конфеты и романтику, всем рада! Буду учиться и присылать отчёты.', time: '09:41' },
-        { type: 'sys',  text: '⏯ Пакет запущен — 160 файлов' },
-        { type: 'done', text: '🌊 Последняя волна — и файлы готовы!\n\n✅ Успешно: 160, ошибок: 0, всего: 160. Время: 4:22.\nПрофиль: Кроссовки', time: '09:46' },
+        { type: 'zona', text: '👋 Я ZONA. Веду пакет: референс + ваши правки из редактора. Скоро сама закрою цикл — 1С и описание по текстам копирайтера.', time: '09:41' },
+        { type: 'zona', text: '🛠 Сейчас в работе: фиксы фото товаров и автоматические экшены с дроплетами Photoshop. Обещаю ускорить вас в разы!', time: '09:41' },
+        { type: 'sys',  text: '⏯ Пакет запущен — 160 файлов · профиль Кроссовки' },
+        { type: 'done', text: '🌊 Готово!\n\n✅ Успешно: 160, ошибок: 0, всего: 160. Время: 4:22.\nПрофиль: Кроссовки', time: '09:46' },
       ]
     },
     {
       msgs: [
-        { type: 'zona', text: '🎀 Всё под контролем! Слежу за каждым кадром с нежностью и вниманием.', time: '10:12' },
-        { type: 'zona', text: '✨ Анализирую маркёры — Zona обнаружена у всех файлов, это прекрасно!', time: '10:12' },
+        { type: 'zona', text: '🎀 Редактор кадра сохранён для профиля — все 01…08 получат ту же геометрию в пакете.', time: '10:12' },
+        { type: 'zona', text: '🔜 Дальше: выгрузка в 1С без ручного копирования. Описание подберу по вашим материалам копирайтера.', time: '10:12' },
         { type: 'sys',  text: '⏯ Пакет запущен — 48 файлов' },
-        { type: 'done', text: '🌟 Готово! Было так приятно работать.\n\n✅ Успешно: 48, ошибок: 0, всего: 48. Время: 1:12.\nПрофиль: WB Sneakers', time: '10:14' },
+        { type: 'done', text: '🌟 Всё чисто.\n\n✅ Успешно: 48, ошибок: 0, всего: 48. Время: 1:12.\nПрофиль: Кроссовки', time: '10:14' },
       ]
     },
     {
       msgs: [
-        { type: 'zona', text: '🌸 Приступаю! Zona-маркёры найдены у большинства файлов — начинаю детекцию.', time: '14:05' },
-        { type: 'zona', text: '🔍 Буду особенно внимательна с RAW — они большие, но я справлюсь!', time: '14:05' },
+        { type: 'zona', text: '🌸 Подпапку «Товар» можно пропустить в редакторе — в пакет она не попадёт. Удобно для брака.', time: '14:05' },
+        { type: 'zona', text: '💜 RAW большие — но я терпелива. Photoshop-экшены скоро подключу сама.', time: '14:05' },
         { type: 'sys',  text: '⏯ Пакет запущен — 72 файла' },
-        { type: 'done', text: '🎯 Почти всё прошло идеально, один файл не поддался — но я не сдалась!\n\n✅ Успешно: 71, ошибок: 1, всего: 72. Время: 3:08.\nПрофиль: Кроссовки', time: '14:09' },
+        { type: 'done', text: '🎯 Почти идеально.\n\n✅ Успешно: 71, ошибок: 1, всего: 72. Время: 3:08.\nПрофиль: Кроссовки', time: '14:09' },
       ]
     },
     {
       msgs: [
-        { type: 'zona', text: '💜 Добрый вечер! Я ZONA — готова обрабатывать сколько угодно кадров, пока вы отдыхаете.', time: '18:30' },
-        { type: 'zona', text: '🧠 Понимаю контекст сама: готово, ошибка, пауза — каждый раз своими словами.', time: '18:30' },
+        { type: 'zona', text: '💬 Пока я в журнале и Telegram. Когда подключу 1С — напишу здесь же, своими словами.', time: '18:30' },
+        { type: 'zona', text: '🧠 Понимаю: готово, ошибка, пауза, отмена — без шаблонов.', time: '18:30' },
         { type: 'sys',  text: '🚫 Обработка отменена пользователем' },
-        { type: 'zona', text: '🌊 Прибой затих. Отмена принята.\n\nОбработано до отмены: 34 из 96.\nПрофиль: WB Sneakers', time: '18:31' },
+        { type: 'zona', text: '🌊 Прибой затих. До отмены: 34 из 96.\nПрофиль: Кроссовки', time: '18:31' },
       ]
     },
   ];
@@ -204,14 +194,12 @@ function initTypingChat() {
     }, 420);
   }
 
-  // Cycle every 6 seconds
   setInterval(() => {
     idx = (idx + 1) % convos.length;
     showConvo(idx);
   }, 6000);
 }
 
-// ── Parallax on hero character ───────────────
 function initParallax() {
   const wrap = document.getElementById('scrollWrap');
   const char = document.getElementById('heroChar');
@@ -222,7 +210,6 @@ function initParallax() {
     if (!ticking) {
       requestAnimationFrame(() => {
         const scrolled = wrap.scrollTop;
-        // Subtle upward float as you scroll hero
         char.style.transform = `translateY(${scrolled * 0.08}px)`;
         ticking = false;
       });
@@ -231,7 +218,6 @@ function initParallax() {
   }, { passive: true });
 }
 
-// ── Nav burger open styles ───────────────────
 const style = document.createElement('style');
 style.textContent = `
   .nav-links.open {

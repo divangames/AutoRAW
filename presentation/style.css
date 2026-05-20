@@ -591,6 +591,17 @@ a{color:inherit;text-decoration:none}
 .zona-desc{font-size:15px;color:var(--text-2);line-height:1.7;margin-bottom:28px}
 .zona-desc strong{color:var(--red)}
 .zona-steps{display:flex;flex-direction:column;gap:16px}
+.zona-roadmap{
+  margin-top:20px;padding:14px 16px;
+  border:1px solid rgba(239,68,68,.25);
+  border-radius:10px;background:rgba(239,68,68,.06)
+}
+.zona-roadmap-label{
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--red);margin-bottom:6px
+}
+.zona-roadmap-text{font-size:14px;color:var(--text-2);line-height:1.55}
+.zona-roadmap-text strong{color:var(--text-1)}
 .zona-step{display:flex;gap:14px;align-items:flex-start}
 .step-num{
   min-width:34px;height:34px;
