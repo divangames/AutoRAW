@@ -207,7 +207,7 @@ a{color:inherit;text-decoration:none}
 /* JS will set inline style for delay */
 
 /* ══════════ HERO ══════════ */
-.s-hero{padding-top:60px;position:relative}
+.s-hero{padding-top:60px;position:relative;overflow:hidden}
 
 /* video bg */
 .hero-video-bg{
@@ -330,19 +330,21 @@ a{color:inherit;text-decoration:none}
 }
 .hstat-label{font-size:12px;color:var(--text-3);margin-top:1px}
 
-/* hero right - character */
-.hero-right{
-  position:relative;
-  height:100%;
-  display:flex;align-items:flex-end;justify-content:center;
+/* Персонаж Zona: одинаковый размер на hero и CTA */
+.slide-char-wrap{
+  position:absolute;
+  bottom:0;right:40px;
+  z-index:10;pointer-events:none;
+  height:99%;
+  transform:translateX(15%);
 }
-.hero-char{
-  height:90vh;max-height:800px;
-  width:auto;object-fit:contain;object-position:bottom;
+.slide-char{
+  height:100%;width:auto;
+  object-fit:contain;object-position:bottom right;
   display:block;
-  filter:drop-shadow(0 0 60px rgba(74,158,255,.15));
-  transition:transform .1s linear;
+  filter:drop-shadow(-10px 0 28px rgba(8,8,15,.75));
 }
+.hero-char{transition:transform .1s linear}
 
 .hero-speech{
   position:absolute;
@@ -996,19 +998,7 @@ a{color:inherit;text-decoration:none}
   background:radial-gradient(circle,rgba(168,85,247,.4) 0%,transparent 70%);
   animation:glow2 6s ease-in-out infinite alternate;
 }
-.cta-char-wrap{
-  position:absolute;
-  bottom:0;right:40px;
-  z-index:10;pointer-events:none;
-  height:99%;
-  transform:translateX(15%);
-}
-.cta-char{
-  height:100%;width:auto;
-  object-fit:contain;object-position:bottom right;
-  display:block;
-  filter:drop-shadow(-10px 0 28px rgba(8,8,15,.75));
-}
+/* .cta-char-wrap / .cta-char — см. .slide-char-wrap */
 
 .cta-speech{
   position:absolute;
@@ -1118,7 +1108,6 @@ a{color:inherit;text-decoration:none}
   .zona-layout{grid-template-columns:1fr;gap:40px}
   .ai-layout{grid-template-columns:1fr;gap:32px}
   .tg-layout{grid-template-columns:1fr;gap:40px}
-  .hero-char{height:70vh}
 }
 @media(max-width:768px){
   body{overflow:auto}
@@ -1128,13 +1117,13 @@ a{color:inherit;text-decoration:none}
   .nav-links{display:none}
   .nav-burger{display:flex}
   .hero-inner{grid-template-columns:1fr;padding-top:20px}
-  .hero-right{display:none}
+  .hero-char-wrap{display:none}
   .hero-speech{display:none}
   .hero-title{font-size:clamp(36px,8vw,52px)}
   .stack-grid{grid-template-columns:repeat(2,1fr)}
   .req-strip{justify-content:flex-start}
   .cta-title{font-size:clamp(32px,7vw,44px)}
-  .cta-char-wrap{display:none}
+  .slide-char-wrap{display:none}
   .cta-speech{display:none}
   .ai-char-wrap{display:none}
   .ai-speech{display:none}
