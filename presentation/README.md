@@ -4,9 +4,14 @@
 
 ## Один раз в репозитории на GitHub
 
-1. **Settings** → **Pages**
-2. **Build and deployment** → **Source:** **GitHub Actions** (не «Deploy from branch»)
-3. Сохранить
+**Settings** → **Pages** → **Build and deployment**:
+
+| Вариант | Настройка |
+|--------|-----------|
+| **Рекомендуется** | **Source:** Deploy from a branch → Branch: **`gh-pages`** → Folder: **`/ (root)`** |
+| Альтернатива | **Source:** GitHub Actions (workflow сам попробует включить Pages) |
+
+После первого успешного workflow подождите 1–2 минуты и откройте сайт.
 
 ## Деплой
 

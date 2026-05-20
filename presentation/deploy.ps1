@@ -73,7 +73,7 @@ function Deploy-GitHubPages {
         Write-Host 'Pushed. Workflow: Actions -> Deploy presentation'
         Write-Host 'Site (after 1-2 min): https://divangames.github.io/AutoRAW/'
         Write-Host ''
-        Write-Host 'If 404: GitHub repo Settings -> Pages -> Source: GitHub Actions (not branch).'
+        Write-Host 'If 404: Settings -> Pages -> Deploy from branch -> gh-pages / (root).'
     } finally {
         Pop-Location
     }
