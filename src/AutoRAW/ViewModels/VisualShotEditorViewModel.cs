@@ -89,8 +89,6 @@ public partial class VisualShotEditorViewModel : ObservableObject
     private readonly Dictionary<string, (string Sig, BitmapSource Bmp)> _thumbBitmapCache =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private CancellationTokenSource? _thumbLoadCts;
-
     private DispatcherTimer? _statusFlashClearTimer;
 
     private readonly EditorAdjustUndoStack _adjustUndo = new();
@@ -154,6 +152,16 @@ public partial class VisualShotEditorViewModel : ObservableObject
             if (!_applyingUndoRedo && !IsBrowseMode)
                 _adjustUndo.CommitSnapshot(BuildCurrentAdjust());
         };
+
+        _folderSyncDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+        _folderSyncDebounce.Tick += async (_, _) =>
+        {
+            _folderSyncDebounce.Stop();
+            var prefetch = _folderSyncWantsPrefetch;
+            _folderSyncWantsPrefetch = false;
+            var gen = Interlocked.Increment(ref _folderPrefetchGeneration);
+            await SyncFilesFromFolderVisibilityAsync(gen, prefetch).ConfigureAwait(true);
+        };
     }
 
     /// <summary>Список файлов с фильтром и группировкой по имени.</summary>
@@ -195,11 +203,15 @@ public partial class VisualShotEditorViewModel : ObservableObject
     /// <summary>Индикатор загрузки больших превью «Референс / Результат» в режиме правки.</summary>
     [ObservableProperty] private bool _isEditorLargePreviewBusy;
 
-    /// <summary>Текущее выделение папок в UI (полные пути).</summary>
-    private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Синхронизировать выделение ListBox после пересборки списка папок.</summary>
+    /// <summary>Синхронизировать разворот дерева после пересборки (без перезагрузки файлов).</summary>
     public event Action<IReadOnlyList<FolderTreeNodeViewModel>>? SyncFolderSelectionAfterReload;
+
+    [ObservableProperty] private bool _allFoldersShown = true;
+
+    private bool _suppressFolderShownSync;
+    private bool _suppressAllFoldersShown;
+    private bool _folderSyncWantsPrefetch;
+    private readonly DispatcherTimer _folderSyncDebounce;
 
     [ObservableProperty] private string? _editorInputPath;
 
@@ -320,9 +332,23 @@ public partial class VisualShotEditorViewModel : ObservableObject
     partial void OnBrowseFilterKindChanged(EditorBrowseFilterKind value)
     {
         RefreshFilesView();
-        var sel = ResolveFoldersFromSelectionPaths();
-        if (sel.Count > 0)
-            _ = ReloadFilesForSelectedFoldersAsync(sel);
+    }
+
+    partial void OnAllFoldersShownChanged(bool value)
+    {
+        if (_suppressAllFoldersShown)
+            return;
+
+        var root = FolderTreeRoots.FirstOrDefault();
+        if (root is null)
+            return;
+
+        _suppressFolderShownSync = true;
+        CascadeFolderShown(root, value);
+        _suppressFolderShownSync = false;
+        PersistIgnoredFromTree();
+        ScheduleSyncFilesFromFolderVisibility();
+        StatusText = value ? "Все папки показаны." : "Все папки скрыты — файлы не отображаются.";
     }
 
     partial void OnBrowseFilterTextChanged(string value) => RefreshFilesView();
@@ -392,8 +418,12 @@ public partial class VisualShotEditorViewModel : ObservableObject
         FilesView.Refresh();
     }
 
-    private bool ShouldGroupFilesByFolder() =>
-        _filesScopeIsEntireGoods || _selectedFolderPaths.Count > 1;
+    private bool ShouldGroupFilesByFolder()
+    {
+        var root = FolderTreeRoots.FirstOrDefault();
+        return _filesScopeIsEntireGoods
+               || (root is not null && CountShownFolderNodes(root) > 1);
+    }
 
     private bool FilterFilesPredicate(object obj)
     {
@@ -477,22 +507,6 @@ public partial class VisualShotEditorViewModel : ObservableObject
         ClearProfileBasenameRuleCommand.NotifyCanExecuteChanged();
     }
 
-    private static FolderTreeNodeViewModel? FindTreeNodeByPath(FolderTreeNodeViewModel? node, string fullPath)
-    {
-        if (node is null)
-            return null;
-        if (node.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase))
-            return node;
-        foreach (var child in node.Children)
-        {
-            var hit = FindTreeNodeByPath(child, fullPath);
-            if (hit is not null)
-                return hit;
-        }
-
-        return null;
-    }
-
     private static int CountTreeNodes(FolderTreeNodeViewModel node)
     {
         var n = 1;
@@ -501,12 +515,57 @@ public partial class VisualShotEditorViewModel : ObservableObject
         return n;
     }
 
-    private static int CountIgnoredInTree(FolderTreeNodeViewModel node)
+    private static int CountHiddenInTree(FolderTreeNodeViewModel node)
     {
-        var n = node.IsIgnored ? 1 : 0;
+        var n = node.IsShown ? 0 : 1;
         foreach (var c in node.Children)
-            n += CountIgnoredInTree(c);
+            n += CountHiddenInTree(c);
         return n;
+    }
+
+    private static int CountShownFolderNodes(FolderTreeNodeViewModel node)
+    {
+        var n = node.IsShown ? 1 : 0;
+        foreach (var c in node.Children)
+            n += CountShownFolderNodes(c);
+        return n;
+    }
+
+    private static bool HasAnyHiddenFolder(FolderTreeNodeViewModel node)
+    {
+        if (!node.IsShown)
+            return true;
+        foreach (var c in node.Children)
+        {
+            if (HasAnyHiddenFolder(c))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void CollectHiddenFolderPaths(FolderTreeNodeViewModel node, HashSet<string> into)
+    {
+        if (!node.IsShown)
+            into.Add(node.FullPath);
+        foreach (var c in node.Children)
+            CollectHiddenFolderPaths(c, into);
+    }
+
+    private static void CascadeFolderShown(FolderTreeNodeViewModel node, bool shown)
+    {
+        node.IsShown = shown;
+        foreach (var c in node.Children)
+            CascadeFolderShown(c, shown);
+    }
+
+    private static void WireFolderTreeHandlers(
+        FolderTreeNodeViewModel node,
+        Action<FolderTreeNodeViewModel> onShownChanged)
+    {
+        node.SetShownChangedHandler(onShownChanged);
+        foreach (var c in node.Children)
+            WireFolderTreeHandlers(c, onShownChanged);
     }
 
     private void PopulateFolderTreeChildren(
@@ -517,9 +576,9 @@ public partial class VisualShotEditorViewModel : ObservableObject
     {
         foreach (var sub in Directory.GetDirectories(directory).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
         {
-            var ig = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(goodsRootFull, sub, ignored);
+            var hidden = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(goodsRootFull, sub, ignored);
             var name = Path.GetFileName(sub) ?? sub;
-            var child = new FolderTreeNodeViewModel(name, sub, isGoodsRoot: false, ig, parent);
+            var child = new FolderTreeNodeViewModel(name, sub, isGoodsRoot: false, isShown: !hidden, parent);
             parent.Children.Add(child);
             PopulateFolderTreeChildren(child, sub, goodsRootFull, ignored);
         }
@@ -541,103 +600,131 @@ public partial class VisualShotEditorViewModel : ObservableObject
         if (string.IsNullOrEmpty(rootLabel))
             rootLabel = rootFull;
 
-        var rootIg = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(rootFull, rootFull, ignored);
-        var rootNode = new FolderTreeNodeViewModel(rootLabel, rootFull, isGoodsRoot: true, rootIg);
+        var rootHidden = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(rootFull, rootFull, ignored);
+        var rootNode = new FolderTreeNodeViewModel(rootLabel, rootFull, isGoodsRoot: true, isShown: !rootHidden);
         PopulateFolderTreeChildren(rootNode, rootFull, rootFull, ignored);
         FolderTreeRoots.Add(rootNode);
+        WireFolderTreeHandlers(rootNode, OnFolderShownChanged);
+        UpdateAllFoldersShownFromTree();
 
-        var toSelect = _selectedFolderPaths
-            .Select(p => FindTreeNodeByPath(rootNode, p))
-            .Where(n => n is not null)
-            .Cast<FolderTreeNodeViewModel>()
-            .ToList();
-        if (toSelect.Count == 0)
-            toSelect = [rootNode];
-
-        ApplyFolderSelectionFromReload(toSelect);
+        SyncFolderSelectionAfterReload?.Invoke([rootNode]);
+        _filesBacking.Clear();
+        ScheduleSyncFilesFromFolderVisibility(wantsPrefetch: true);
 
         var nodeCount = CountTreeNodes(rootNode) - 1;
-        var ignoredCount = CountIgnoredInTree(rootNode);
+        var hiddenCount = CountHiddenInTree(rootNode);
         StatusText = nodeCount > 0
             ? $"Дерево: корень + {nodeCount} подпапок"
-              + (ignoredCount > 0 ? $", пропущено: {ignoredCount}." : ". Корень — все файлы.")
-            : "Только корень «Товар» — все файлы в этой папке.";
+              + (hiddenCount > 0 ? $", скрыто: {hiddenCount}." : ".")
+            : "Только корень «Товар».";
     }
 
-    public void NotifyFoldersSelectionChanged(IReadOnlyList<FolderTreeNodeViewModel> folders)
+    private void OnFolderShownChanged(FolderTreeNodeViewModel node)
     {
-        _selectedFolderPaths.Clear();
-        foreach (var f in folders)
-            _selectedFolderPaths.Add(f.FullPath);
-        _ = ReloadFilesForSelectedFoldersAsync(folders);
+        if (_suppressFolderShownSync)
+            return;
+
+        if (!node.IsShown)
+        {
+            _suppressFolderShownSync = true;
+            foreach (var c in node.Children)
+                CascadeFolderShown(c, false);
+            _suppressFolderShownSync = false;
+        }
+
+        PersistIgnoredFromTree();
+        UpdateAllFoldersShownFromTree();
+        ScheduleSyncFilesFromFolderVisibility();
+
+        var root = FolderTreeRoots.FirstOrDefault();
+        var hidden = root is null ? 0 : CountHiddenInTree(root);
+        StatusText = hidden > 0
+            ? $"Скрыто папок: {hidden} (файлы этих веток не показываются)."
+            : "Все папки показаны.";
     }
 
-    private void ApplyFolderSelectionFromReload(IReadOnlyList<FolderTreeNodeViewModel> folders)
-    {
-        _selectedFolderPaths.Clear();
-        foreach (var f in folders)
-            _selectedFolderPaths.Add(f.FullPath);
-
-        SyncFolderSelectionAfterReload?.Invoke(folders);
-        _ = ReloadFilesForSelectedFoldersAsync(folders);
-    }
-
-    private List<FolderTreeNodeViewModel> ResolveFoldersFromSelectionPaths()
+    private void UpdateAllFoldersShownFromTree()
     {
         var root = FolderTreeRoots.FirstOrDefault();
         if (root is null)
-            return [];
-        return _selectedFolderPaths
-            .Select(p => FindTreeNodeByPath(root, p))
-            .Where(n => n is not null)
-            .Cast<FolderTreeNodeViewModel>()
-            .ToList();
+            return;
+
+        _suppressAllFoldersShown = true;
+        AllFoldersShown = !HasAnyHiddenFolder(root);
+        _suppressAllFoldersShown = false;
     }
 
-    [RelayCommand]
-    private void IgnoreSelectedFolder()
+    private void PersistIgnoredFromTree()
     {
-        var targets = ResolveFoldersFromSelectionPaths().Where(f => !f.IsIgnored).ToList();
-        if (targets.Count == 0)
+        var root = FolderTreeRoots.FirstOrDefault();
+        var goodsRoot = _main.InputFolder?.Trim() ?? string.Empty;
+        if (root is null || string.IsNullOrEmpty(goodsRoot) || !Directory.Exists(goodsRoot))
             return;
 
-        var root = _main.InputFolder?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
-            return;
-
-        var rootFull = Path.GetFullPath(root);
-        var ignored = EditorIgnoredFoldersStore.GetIgnoredFolders(rootFull);
-        foreach (var f in targets)
-            ignored.Add(f.FullPath);
-        EditorIgnoredFoldersStore.SetIgnoredFolders(rootFull, ignored);
-        ReloadFolderList();
+        var rootFull = Path.GetFullPath(goodsRoot);
+        var hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectHiddenFolderPaths(root, hidden);
+        EditorIgnoredFoldersStore.SetIgnoredFolders(rootFull, hidden);
         _main.RebuildMappingRowsFromEditor();
-        StatusText = targets.Count == 1
-            ? "Папка «" + targets[0].DisplayName + "» исключена из очереди."
-            : $"Исключено папок: {targets.Count}.";
     }
 
-    [RelayCommand]
-    private void RestoreSelectedFolder()
+    private void ScheduleSyncFilesFromFolderVisibility(bool wantsPrefetch = false)
     {
-        var targets = ResolveFoldersFromSelectionPaths().Where(f => f.IsIgnored).ToList();
-        if (targets.Count == 0)
+        if (wantsPrefetch)
+            _folderSyncWantsPrefetch = true;
+        _folderSyncDebounce.Stop();
+        _folderSyncDebounce.Start();
+    }
+
+    private async Task SyncFilesFromFolderVisibilityAsync(int syncGeneration, bool runPrefetch)
+    {
+        var root = FolderTreeRoots.FirstOrDefault();
+        if (root is null)
             return;
 
-        var root = _main.InputFolder?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
+        var goodsRootRaw = _main.InputFolder?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(goodsRootRaw) || !Directory.Exists(goodsRootRaw))
             return;
 
-        var rootFull = Path.GetFullPath(root);
-        var ignored = EditorIgnoredFoldersStore.GetIgnoredFolders(rootFull);
-        foreach (var f in targets)
-            ignored.Remove(f.FullPath);
-        EditorIgnoredFoldersStore.SetIgnoredFolders(rootFull, ignored);
-        ReloadFolderList();
-        _main.RebuildMappingRowsFromEditor();
-        StatusText = targets.Count == 1
-            ? "Папка «" + targets[0].DisplayName + "» снова в очереди."
-            : $"Восстановлено папок: {targets.Count}.";
+        var goodsRootFull = Path.GetFullPath(goodsRootRaw);
+        var hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectHiddenFolderPaths(root, hidden);
+
+        var newPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in ImageFileCatalog.ListImagesRecursiveUnderSubtree(goodsRootFull, goodsRootFull))
+        {
+            if (!EditorIgnoredFoldersStore.IsUnderIgnoredFolder(goodsRootFull, p, hidden))
+                newPaths.Add(p);
+        }
+
+        var removed = _filesBacking.Where(i => !newPaths.Contains(i.FilePath)).ToList();
+        foreach (var item in removed)
+            _filesBacking.Remove(item);
+
+        var addedItems = new List<FileThumbItemViewModel>();
+        foreach (var path in newPaths)
+        {
+            if (_filesBacking.Any(i => i.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            var item = CreateFileThumbItem(path, goodsRootFull);
+            _filesBacking.Add(item);
+            addedItems.Add(item);
+        }
+
+        _filesScopeIsEntireGoods = BrowseFilterKind == EditorBrowseFilterKind.All && !HasAnyHiddenFolder(root);
+        RefreshFilesView();
+
+        if (syncGeneration != Volatile.Read(ref _folderPrefetchGeneration))
+            return;
+
+        if (addedItems.Count > 0)
+            await LoadThumbnailsForItemsAsync(addedItems).ConfigureAwait(true);
+
+        if (!runPrefetch || syncGeneration != Volatile.Read(ref _folderPrefetchGeneration))
+            return;
+
+        var paths = _filesBacking.Select(i => i.FilePath).ToList();
+        _ = RunFolderAutoAlignPrefetchAsync(syncGeneration, paths);
     }
 
     [RelayCommand]
@@ -679,64 +766,6 @@ public partial class VisualShotEditorViewModel : ObservableObject
             System.Windows.MessageBox.Show($"Не удалось сохранить профиль:\n{ex.Message}", "AutoRAW",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-    }
-
-    private async Task ReloadFilesForSelectedFoldersAsync(IReadOnlyList<FolderTreeNodeViewModel> folders)
-    {
-        var prefetchGen = Interlocked.Increment(ref _folderPrefetchGeneration);
-        _filesBacking.Clear();
-        InvalidateAllThumbCache();
-        _filesScopeIsEntireGoods = false;
-        RefreshFilesView();
-
-        if (folders.Count == 0)
-            return;
-
-        var goodsRootRaw = _main.InputFolder?.Trim() ?? string.Empty;
-        var goodsRootFull = !string.IsNullOrEmpty(goodsRootRaw) && Directory.Exists(goodsRootRaw)
-            ? Path.GetFullPath(goodsRootRaw)
-            : string.Empty;
-
-        var active = folders.Where(f => !f.IsIgnored).ToList();
-        if (active.Count == 0)
-            return;
-
-        var loadEntireGoods = BrowseFilterKind == EditorBrowseFilterKind.All
-                              && !string.IsNullOrEmpty(goodsRootFull)
-                              && active.Any(f => f.IsGoodsRoot);
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (loadEntireGoods)
-        {
-            _filesScopeIsEntireGoods = true;
-            foreach (var p in ImageFileCatalog.ListImagesRecursiveUnderSubtree(goodsRootFull, goodsRootFull))
-            {
-                if (!seen.Add(p))
-                    continue;
-                _filesBacking.Add(CreateFileThumbItem(p, goodsRootFull));
-            }
-        }
-        else
-        {
-            foreach (var folder in active)
-            {
-                IEnumerable<string> folderImages = string.IsNullOrEmpty(goodsRootFull)
-                    ? ImageFileCatalog.ListImagesInFolder(folder.FullPath)
-                    : ImageFileCatalog.ListImagesRecursiveUnderSubtree(folder.FullPath, goodsRootFull);
-
-                foreach (var p in folderImages)
-                {
-                    if (!seen.Add(p))
-                        continue;
-                    _filesBacking.Add(CreateFileThumbItem(p, goodsRootFull));
-                }
-            }
-        }
-
-        RefreshFilesView();
-        var paths = _filesBacking.Select(i => i.FilePath).ToList();
-        await LoadCompositeThumbnailsAsync().ConfigureAwait(true);
-        _ = RunFolderAutoAlignPrefetchAsync(prefetchGen, paths);
     }
 
     /// <summary>
@@ -931,60 +960,70 @@ public partial class VisualShotEditorViewModel : ObservableObject
         return rel.Replace(Path.AltDirectorySeparatorChar, '/');
     }
 
-    private async Task LoadCompositeThumbnailsAsync()
+    private async Task LoadThumbnailsForItemsAsync(IReadOnlyList<FileThumbItemViewModel> items)
     {
-        _thumbLoadCts?.Cancel();
-        _thumbLoadCts?.Dispose();
-        var cts = new CancellationTokenSource();
-        _thumbLoadCts = cts;
-        var token = cts.Token;
+        if (items.Count == 0)
+            return;
 
-        var items = _filesBacking.ToList();
-        foreach (var item in items)
+        var needLoad = new List<FileThumbItemViewModel>();
+        await _dispatcher.InvokeAsync(() =>
         {
-            item.IsThumbLoading = true;
-            item.Thumbnail = null;
-        }
+            foreach (var item in items)
+            {
+                if (TryApplyCachedThumbnailToItem(item))
+                    continue;
+                if (item.Thumbnail is not null && !item.IsThumbLoading)
+                    continue;
+                item.IsThumbLoading = true;
+                needLoad.Add(item);
+            }
+        }, DispatcherPriority.Normal);
 
-        try
-        {
-            await Parallel.ForEachAsync(
-                items,
-                new ParallelOptions { MaxDegreeOfParallelism = EditorBrowseThumbParallelism, CancellationToken = token },
-                async (item, ct) =>
+        if (needLoad.Count == 0)
+            return;
+
+        await Parallel.ForEachAsync(
+            needLoad,
+            new ParallelOptions { MaxDegreeOfParallelism = EditorBrowseThumbParallelism },
+            async (item, ct) =>
+            {
+                BitmapSource? bmp = null;
+                try
                 {
-                    BitmapSource? bmp = null;
-                    try
-                    {
-                        bmp = await Task.Run(() => TryBuildCompositeThumbnailBitmap(item.FilePath), ct)
-                            .ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return;
-                    }
-                    catch
-                    {
-                        /* ignore */
-                    }
+                    bmp = await Task.Run(() => TryBuildCompositeThumbnailBitmap(item.FilePath), ct)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    /* ignore */
+                }
 
-                    if (ct.IsCancellationRequested)
-                        return;
+                var assigned = bmp;
+                await _dispatcher.InvokeAsync(() =>
+                {
+                    item.IsThumbLoading = false;
+                    item.Thumbnail = assigned;
+                }, DispatcherPriority.Background, ct);
+            }).ConfigureAwait(true);
+    }
 
-                    var assigned = bmp;
-                    await _dispatcher.InvokeAsync(() =>
-                    {
-                        if (token.IsCancellationRequested)
-                            return;
-                        item.IsThumbLoading = false;
-                        item.Thumbnail = assigned;
-                    }, DispatcherPriority.Background, ct);
-                }).ConfigureAwait(true);
-        }
-        catch (OperationCanceledException)
+    private bool TryApplyCachedThumbnailToItem(FileThumbItemViewModel item)
+    {
+        var stem = ZonaOperationGuideParser.NormalizeShotStem(null, item.FilePath) ?? "01";
+        var manual = ManualShotAdjustStore.Resolve(_main.SelectedProduct.DisplayName, item.FilePath, stem);
+        var sig = BuildThumbSignature(stem, manual);
+
+        lock (_thumbCacheGate)
         {
-            /* новая папка / фильтр */
+            if (_thumbBitmapCache.TryGetValue(item.FilePath, out var hit) && hit.Sig == sig)
+            {
+                item.Thumbnail = hit.Bmp;
+                item.IsThumbLoading = false;
+                return true;
+            }
         }
+
+        return false;
     }
 
     private async Task RefreshThumbnailsForPathsAsync(IReadOnlyList<string> paths)
@@ -1084,12 +1123,6 @@ public partial class VisualShotEditorViewModel : ObservableObject
     {
         lock (_thumbCacheGate)
             _thumbBitmapCache.Remove(path);
-    }
-
-    private void InvalidateAllThumbCache()
-    {
-        lock (_thumbCacheGate)
-            _thumbBitmapCache.Clear();
     }
 
     private void RefreshThumbnailForPath(string path)
@@ -1876,18 +1909,20 @@ public readonly record struct EditorBrowseFilterOption(EditorBrowseFilterKind Ki
 
 public partial class FolderTreeNodeViewModel : ObservableObject
 {
+    private Action<FolderTreeNodeViewModel>? _shownChanged;
+
     public FolderTreeNodeViewModel(
         string displayName,
         string fullPath,
         bool isGoodsRoot,
-        bool isIgnored = false,
+        bool isShown = true,
         FolderTreeNodeViewModel? parent = null)
     {
         DisplayName = displayName;
         FullPath = fullPath;
         IsGoodsRoot = isGoodsRoot;
         Parent = parent;
-        _isIgnored = isIgnored;
+        _isShown = isShown;
     }
 
     public string DisplayName { get; }
@@ -1897,9 +1932,11 @@ public partial class FolderTreeNodeViewModel : ObservableObject
 
     public ObservableCollection<FolderTreeNodeViewModel> Children { get; } = new();
 
-    [ObservableProperty] private bool _isIgnored;
+    [ObservableProperty] private bool _isShown = true;
 
-    public string ListLabel => IsIgnored ? "⊘ " + DisplayName : DisplayName;
+    public void SetShownChangedHandler(Action<FolderTreeNodeViewModel>? handler) => _shownChanged = handler;
+
+    partial void OnIsShownChanged(bool value) => _shownChanged?.Invoke(this);
 }
 
 public partial class FileThumbItemViewModel : ObservableObject

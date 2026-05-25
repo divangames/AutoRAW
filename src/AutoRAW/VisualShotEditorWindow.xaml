@@ -72,36 +72,37 @@
               <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <DockPanel Grid.Column="0" Margin="0,0,10,0" LastChildFill="True">
-              <TextBlock DockPanel.Dock="Top"
-                         FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.TextPrimary}"
-                         Text="Папка"
-                         Margin="0,0,0,6" />
-              <StackPanel DockPanel.Dock="Top"
-                          Orientation="Horizontal"
-                          Margin="0,0,0,6">
-                <Button Style="{StaticResource EditorIconButtonStyle}"
-                        Content="&#xE76D;"
-                        Command="{Binding IgnoreSelectedFolderCommand}"
-                        ToolTip="Пропустить: исключить выбранные подпапки из очереди (Ctrl — несколько)" />
-                <Button Style="{StaticResource EditorIconButtonStyle}"
-                        Margin="4,0,0,0"
-                        Content="&#xE777;"
-                        Command="{Binding RestoreSelectedFolderCommand}"
-                        ToolTip="Вернуть выбранные подпапки в очередь" />
-              </StackPanel>
+              <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                <TextBlock DockPanel.Dock="Left"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.TextPrimary}"
+                           Text="Папка"
+                           VerticalAlignment="Center" />
+                <CheckBox DockPanel.Dock="Right"
+                          Margin="8,0,0,0"
+                          VerticalAlignment="Center"
+                          Content="Все"
+                          IsChecked="{Binding AllFoldersShown, Mode=TwoWay}"
+                          ToolTip="Показать или скрыть файлы всех папок (и исключить скрытые из очереди)" />
+              </DockPanel>
               <TreeView x:Name="FoldersTree"
                         DockPanel.Dock="Bottom"
                         ItemsSource="{Binding FolderTreeRoots}"
-                        SelectedItemChanged="FoldersTree_SelectedItemChanged"
                         BorderBrush="{DynamicResource Theme.DialogBorder}"
                         Background="{DynamicResource Theme.DialogBg}"
                         ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <TreeView.ItemTemplate>
                   <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                    <TextBlock Text="{Binding ListLabel}"
-                               Foreground="{DynamicResource Theme.TextPrimary}"
-                               FontSize="12" />
+                    <StackPanel Orientation="Horizontal">
+                      <CheckBox IsChecked="{Binding IsShown, Mode=TwoWay}"
+                                VerticalAlignment="Center"
+                                Margin="0,0,6,0"
+                                ToolTip="Показать или скрыть файлы в этой папке" />
+                      <TextBlock Text="{Binding DisplayName}"
+                                 VerticalAlignment="Center"
+                                 Foreground="{DynamicResource Theme.TextPrimary}"
+                                 FontSize="12" />
+                    </StackPanel>
                   </HierarchicalDataTemplate>
                 </TreeView.ItemTemplate>
               </TreeView>

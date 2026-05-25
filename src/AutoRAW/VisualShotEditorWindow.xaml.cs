@@ -14,7 +14,6 @@ public partial class VisualShotEditorWindow : Window
 {
     private WpfPoint _dragStart;
     private bool _dragging;
-    private bool _syncingFolderSelection;
 
     public VisualShotEditorWindow()
     {
@@ -46,26 +45,11 @@ public partial class VisualShotEditorWindow : Window
 
     private void OnSyncFolderSelectionAfterReload(IReadOnlyList<FolderTreeNodeViewModel> folders)
     {
-        _syncingFolderSelection = true;
-        try
-        {
-            var pick = folders.FirstOrDefault();
-            if (pick is null)
-                return;
+        var pick = folders.FirstOrDefault();
+        if (pick is null)
+            return;
 
-            ExpandTreeToNode(pick);
-            SelectTreeNode(pick);
-        }
-        finally
-        {
-            _syncingFolderSelection = false;
-        }
-    }
-
-    private void SelectTreeNode(FolderTreeNodeViewModel node)
-    {
-        if (FindTreeViewItem(FoldersTree, node) is { } tvi)
-            tvi.IsSelected = true;
+        ExpandTreeToNode(pick);
     }
 
     private static TreeViewItem? FindTreeViewItem(ItemsControl parent, FolderTreeNodeViewModel node)
@@ -103,20 +87,6 @@ public partial class VisualShotEditorWindow : Window
             tvi.UpdateLayout();
             parent = tvi;
         }
-    }
-
-    private void FoldersTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
-    {
-        if (_syncingFolderSelection || Vm is null)
-            return;
-
-        if (FoldersTree.SelectedItem is not FolderTreeNodeViewModel node)
-        {
-            Vm.NotifyFoldersSelectionChanged([]);
-            return;
-        }
-
-        Vm.NotifyFoldersSelectionChanged([node]);
     }
 
     private void Thumb_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
