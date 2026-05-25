@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using AutoRAW;
@@ -19,6 +21,8 @@ public partial class MainViewModel : ObservableObject
     private readonly Dispatcher _dispatcher;
     private readonly AutoCropBatchService _batch = new();
     private readonly BatchRunController _batchRun = new();
+    private readonly CollectionViewSource _mappingRowsViewSource;
+    private int _mappingStatusSerial;
     private ProductProfile? _draftSourceProfile;
 
     /// <summary>После «Пропустить» в авто-проверке не показывать снова до следующего запуска приложения.</summary>
@@ -32,7 +36,9 @@ public partial class MainViewModel : ObservableObject
     {
         _dispatcher = dispatcher;
         MappingRows.CollectionChanged += OnMappingRowsCollectionChanged;
-        _previewDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
+        _mappingRowsViewSource = new CollectionViewSource { Source = MappingRows };
+        _mappingRowsViewSource.View.Filter = MappingRowFilter;
+        _previewDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
         _previewDebounce.Tick += (_, _) =>
         {
             _previewDebounce.Stop();
@@ -58,7 +64,7 @@ public partial class MainViewModel : ObservableObject
 
         LogLines.Add(new LogLineViewModel(ZonaMessages.NextGreeting(), LogLineKind.Zona, fromZona: true));
         LogLines.Add(new LogLineViewModel(
-            "Простой режим: папка «Товар» (включая вложенные папки), опционально выход. Профиль — меню «Профиль». Вид → Окна (чат Zona, цветовой профиль, превью) и расширенный режим."));
+            "Укажите папку «Товар», профиль — меню «Профиль». Вид → Окна: чат Zona, цветовой профиль, превью. Редактор положения кадра — для точной подгонки кадра."));
     }
 
     /// <summary>Первый профиль «Кроссовки» в меню или первый не-черновик.</summary>
@@ -112,6 +118,15 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<CropMappingRowViewModel> MappingRows { get; } = new();
 
+    public ICollectionView MappingRowsView => _mappingRowsViewSource.View;
+
+    [ObservableProperty] private string _mappingQueueHeader = "Очередь";
+
+    [ObservableProperty] private bool _showOnlyWarningRows;
+
+    [ObservableProperty]
+    private double _minAlignQualityPercent = AlignQualityPreferenceStore.GetMinAlignQualityPercent();
+
     /// <summary>Все профили товара для меню (первый — «Кроссовки»).</summary>
     public ObservableCollection<ProductProfile> AllProducts { get; } = new();
 
@@ -120,16 +135,13 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Сопоставление съёмки (меню «Профиль → Фотограф»).</summary>
     [ObservableProperty] private PhotographerKind _selectedPhotographer = PhotographerPreferenceStore.Get();
 
-    /// <summary>Расширенный интерфейс (таблица, превью, ручные пути).</summary>
-    [ObservableProperty] private bool _isAdvancedView;
-
     /// <summary>Панель журнала внизу окна (по умолчанию скрыта).</summary>
     [ObservableProperty] private bool _isLogPanelVisible;
 
-    /// <summary>Блок «Цветовой профиль» в простом и расширенном режиме.</summary>
+    /// <summary>Блок «Цветовой профиль» на главном экране.</summary>
     [ObservableProperty] private bool _isColorProfilePanelVisible = false;
 
-    /// <summary>Блок «Превью» в простом и расширенном режиме.</summary>
+    /// <summary>Блок «Превью» на главном экране.</summary>
     [ObservableProperty] private bool _isPreviewPanelVisible = true;
 
     /// <summary>Тема интерфейса (меню «Вид → Тема»), сохраняется в %AppData%\AutoRAW\theme_prefs.json.</summary>
@@ -137,13 +149,16 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private CropMappingRowViewModel? _selectedMappingRow;
 
-    public bool IsSimpleView => !IsAdvancedView;
-
     [ObservableProperty] private BitmapSource? _previewReference;
 
     [ObservableProperty] private BitmapSource? _previewBefore;
 
     [ObservableProperty] private BitmapSource? _previewAfter;
+
+    [ObservableProperty] private BitmapSource? _previewAfterAuto;
+
+    /// <summary>Подпись под превью «После»: откуда параметры экспорта.</summary>
+    [ObservableProperty] private string _previewExportSourceText = string.Empty;
 
     [ObservableProperty] private string _referenceFolder = string.Empty;
 
@@ -187,6 +202,14 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Сохранять результат кадрирования в WebP; иначе JPEG. Запоминается в %AppData%\AutoRAW\export_prefs.json.</summary>
     [ObservableProperty] private bool _saveAsWebP = ExportPreferenceStore.GetSaveAsWebP();
+
+    /// <summary>После сохранения каждого кадра пакета передать файл в экшен-дроплет Photoshop (<c>droplets\</c> рядом с exe). По умолчанию выключено; <c>export_prefs.json</c>.</summary>
+    [ObservableProperty] private bool _runThroughPhotoshopDroplets =
+        ExportPreferenceStore.GetRunThroughPhotoshopDroplets();
+
+    /// <summary>LibRaw для NEF/RAW; иначе только ImageMagick (%AppData%\AutoRAW\raw_loader_prefs.json).</summary>
+    [ObservableProperty] private bool _useLibRawForRaw =
+        RawLoaderPreferenceStore.GetMode() != RawLoaderMode.Magick;
 
     private bool _applyColorCorrection;
 
@@ -270,13 +293,31 @@ public partial class MainViewModel : ObservableObject
         OpenVisualShotEditorCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnAnalysisMaxEdgeChanged(double value) => SchedulePreviewRefresh();
+    partial void OnAnalysisMaxEdgeChanged(double value)
+    {
+        SchedulePreviewRefresh();
+        ScheduleMappingStatusRefresh();
+    }
+
+    partial void OnShowOnlyWarningRowsChanged(bool value) => _mappingRowsViewSource.View.Refresh();
+
+    partial void OnMinAlignQualityPercentChanged(double value)
+    {
+        AlignQualityPreferenceStore.SetMinAlignQualityPercent((int)Math.Round(value));
+        ScheduleMappingStatusRefresh();
+    }
 
     partial void OnSelectedMappingRowChanged(CropMappingRowViewModel? value) => SchedulePreviewRefresh();
 
     partial void OnOutputFolderChanged(string value) => NotifyBatchCommandsChanged();
 
     partial void OnSaveAsWebPChanged(bool value) => ExportPreferenceStore.SetSaveAsWebP(value);
+
+    partial void OnRunThroughPhotoshopDropletsChanged(bool value) =>
+        ExportPreferenceStore.SetRunThroughPhotoshopDroplets(value);
+
+    partial void OnUseLibRawForRawChanged(bool value) =>
+        RawLoaderPreferenceStore.SetMode(value ? RawLoaderMode.LibRawPreferred : RawLoaderMode.Magick);
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -304,14 +345,6 @@ public partial class MainViewModel : ObservableObject
     {
         WindowPanelPreferenceStore.SetLogPanelVisible(value);
         OnPropertyChanged(nameof(IsLogDockedVisible));
-    }
-
-    partial void OnIsAdvancedViewChanged(bool value)
-    {
-        OnPropertyChanged(nameof(IsSimpleView));
-        SchedulePreviewRefresh();
-        CommitDraftApplyCommand.NotifyCanExecuteChanged();
-        CommitDraftNewCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsColorProfilePanelVisibleChanged(bool value) =>
@@ -494,7 +527,7 @@ public partial class MainViewModel : ObservableObject
 
     public void SaveColorProfileSettings(ColorCorrectionSettings settings)
     {
-        if (IsAdvancedView && !SelectedProduct.IsDraft)
+        if (!SelectedProduct.IsDraft)
         {
             if (!FoldersDivergeFromSelectedProduct())
                 PromoteToDraftForColor(settings);
@@ -529,11 +562,11 @@ public partial class MainViewModel : ObservableObject
                     && Directory.Exists(SelectedProduct.ReferenceFolder)
                     && Directory.Exists(SelectedProduct.ZonaFolder))
                 {
-                    UserProfileBundleService.WriteBundle(
+                    UserProfileBundleService.WriteBundleAsync(
                         SelectedProduct.DisplayName,
                         SelectedProduct.ReferenceFolder!,
                         SelectedProduct.ZonaFolder!,
-                        updated.Color);
+                        updated.Color).ConfigureAwait(false).GetAwaiter().GetResult();
                 }
 
                 break;
@@ -608,6 +641,161 @@ public partial class MainViewModel : ObservableObject
     {
         NotifyBatchCommandsChanged();
         SchedulePreviewRefresh();
+        ScheduleMappingStatusRefresh();
+    }
+
+    /// <summary>При выборе эталона в очереди — зафиксировать имя выхода по стему референса и сохранить на диск для пересборок.</summary>
+    private void OnCropRowReferenceChanged(CropMappingRowViewModel row)
+    {
+        if (!string.IsNullOrWhiteSpace(row.SelectedReferenceFile))
+        {
+            var stem = Path.GetFileNameWithoutExtension(row.SelectedReferenceFile);
+            if (!string.IsNullOrEmpty(stem))
+            {
+                row.OutputFileStem = stem;
+                row.ZonaMarkerStem = stem;
+            }
+
+            PersistedCropFrameChoiceStore.Set(row.InputPath, row.SelectedReferenceFile);
+        }
+
+        OnMappingRowChanged();
+    }
+
+    /// <returns>true, если восстановили сохранённый эталон и он есть среди доступных файлов reference.</returns>
+    private static bool TryApplyPersistedCropFrameChoice(
+        CropMappingRowViewModel row,
+        IReadOnlyList<string> referenceFileNames)
+    {
+        if (!PersistedCropFrameChoiceStore.TryGet(row.InputPath, out var savedName)
+            || string.IsNullOrWhiteSpace(savedName))
+            return false;
+
+        var matched = referenceFileNames.FirstOrDefault(n =>
+            string.Equals(n, savedName, StringComparison.OrdinalIgnoreCase));
+
+        return matched switch
+        {
+            null => false,
+            _ => PhotographerMappingService.ApplyStemFromChosenReference(row, matched)
+        };
+    }
+
+    private bool MappingRowFilter(object item)
+    {
+        if (item is not CropMappingRowViewModel row)
+            return false;
+        if (!ShowOnlyWarningRows)
+            return true;
+        return row.AlignStatusKind is FrameAlignStatusKind.AutoReview
+            or FrameAlignStatusKind.LowQuality
+            or FrameAlignStatusKind.Failed;
+    }
+
+    private void ScheduleMappingStatusRefresh()
+    {
+        if (MappingRows.Count == 0)
+        {
+            MappingQueueHeader = "Очередь";
+            return;
+        }
+
+        var gen = Interlocked.Increment(ref _mappingStatusSerial);
+        _ = RefreshMappingStatusesAsync(gen);
+    }
+
+    /// <summary>После фоновой авто-подгонки в редакторе — обновить глифы очереди без полной пересборки.</summary>
+    public void RequestMappingStatusRefresh() => ScheduleMappingStatusRefresh();
+
+    private async Task RefreshMappingStatusesAsync(int generation)
+    {
+        if (!Directory.Exists(InputFolder) || !Directory.Exists(ReferenceFolder))
+            return;
+
+        AppPipelineHeavyGate.Enter();
+        try
+        {
+            var inputRoot = Path.GetFullPath(InputFolder);
+            var refFolder = ReferenceFolder;
+            var profile = SelectedProduct.DisplayName;
+            var zona = Directory.Exists(ZonaFolder) ? ZonaFolder : null;
+            var edge = Math.Min(1200, (int)Math.Clamp(Math.Round(AnalysisMaxEdge), 256, 8192));
+            var rows = MappingRows.ToList();
+
+            foreach (var row in rows)
+            {
+                if (generation != Volatile.Read(ref _mappingStatusSerial))
+                    return;
+
+                var captured = row;
+                var update = await Task.Run(() => MappingRowAlignStatusService.Evaluate(
+                    captured, inputRoot, refFolder, profile, zona, edge)).ConfigureAwait(false);
+
+                await _dispatcher.InvokeAsync(() =>
+                {
+                    if (generation != Volatile.Read(ref _mappingStatusSerial))
+                        return;
+
+                    captured.AlignStatusGlyph = update.Glyph;
+                    captured.AlignStatusToolTip = update.ToolTip;
+                    captured.AlignStatusKind = update.Kind;
+                });
+            }
+
+            await _dispatcher.InvokeAsync(() =>
+            {
+                if (generation != Volatile.Read(ref _mappingStatusSerial))
+                    return;
+
+                UpdateMappingQueueHeader();
+                _mappingRowsViewSource.View.Refresh();
+            });
+        }
+        finally
+        {
+            AppPipelineHeavyGate.Leave();
+        }
+    }
+
+    private void UpdateMappingQueueHeader()
+    {
+        var total = MappingRows.Count;
+        if (total == 0)
+        {
+            MappingQueueHeader = "Очередь";
+            return;
+        }
+
+        var warn = MappingRows.Count(r =>
+            r.AlignStatusKind is FrameAlignStatusKind.AutoReview
+                or FrameAlignStatusKind.LowQuality
+                or FrameAlignStatusKind.Failed);
+        var ok = MappingRows.Count(r => r.AlignStatusKind == FrameAlignStatusKind.Ok);
+        MappingQueueHeader = warn > 0
+            ? $"Очередь ({total}) · ✓ {ok} · ⚠ {warn}"
+            : $"Очередь ({total}) · ✓ {ok}";
+    }
+
+    private static string ToRelativeDisplayPath(string inputRoot, string filePath)
+    {
+        try
+        {
+            var rel = Path.GetRelativePath(Path.GetFullPath(inputRoot), Path.GetFullPath(filePath));
+            return rel == "." ? Path.GetFileName(filePath) : rel;
+        }
+        catch
+        {
+            return Path.GetFileName(filePath);
+        }
+    }
+
+    private void AddMappingRow(CropMappingRowViewModel row)
+    {
+        if (Directory.Exists(InputFolder))
+            row.RelativeDisplayPath = ToRelativeDisplayPath(InputFolder, row.InputPath);
+        row.AlignStatusGlyph = "…";
+        row.AlignStatusKind = FrameAlignStatusKind.Pending;
+        MappingRows.Add(row);
     }
 
     private void RefreshReferenceFiles()
@@ -632,6 +820,15 @@ public partial class MainViewModel : ObservableObject
 
         if (ReferenceFiles.Count > 0)
             SelectedReferenceFile = ReferenceFiles[0]!;
+
+        if (Directory.Exists(ReferenceFolder))
+        {
+            ReferenceCompositionCatalog.InvalidateFolder(ReferenceFolder);
+            var edge = (int)Math.Clamp(Math.Round(AnalysisMaxEdge), 256, 8192);
+            var templates = ReferenceCompositionCatalog.BuildFolder(ReferenceFolder, edge);
+            if (templates.Count > 0)
+                AppendLog($"Эталоны reference: запомнено {templates.Count} шаблон(ов) композиции (центр, размер, отступы).");
+        }
 
         if (Directory.Exists(InputFolder))
             RebuildMappingRows();
@@ -687,6 +884,14 @@ public partial class MainViewModel : ObservableObject
                 .ToList();
         }
 
+        var skippedFiles = EditorSkippedFilesStore.GetSkippedFiles(InputFolder);
+        if (skippedFiles.Count > 0)
+        {
+            paths = paths
+                .Where(p => !skippedFiles.Contains(Path.GetFullPath(p)))
+                .ToList();
+        }
+
         if (SelectedPhotographer == PhotographerKind.Standard)
         {
             foreach (var group in paths
@@ -697,9 +902,16 @@ public partial class MainViewModel : ObservableObject
                 for (var i = 0; i < ordered.Count; i++)
                 {
                     var path = ordered[i];
-                    var row = new CropMappingRowViewModel(path, def, OnMappingRowChanged);
-                    PhotographerMappingService.ApplyStandardRow(row, i + 1, refNames, def);
-                    MappingRows.Add(row);
+                    var row = new CropMappingRowViewModel(path, def, OnCropRowReferenceChanged);
+                    if (!TryApplyPersistedCropFrameChoice(row, refNames))
+                    {
+                        if (InputShotNumberParser.TryParse(path, out var shotNum))
+                            PhotographerMappingService.ApplyRuslanRow(row, shotNum, refNames, def);
+                        else
+                            PhotographerMappingService.ApplyStandardRow(row, i + 1, refNames, def);
+                    }
+
+                    AddMappingRow(row);
                 }
             }
         }
@@ -722,15 +934,22 @@ public partial class MainViewModel : ObservableObject
 
                 foreach (var item in withShot.OrderBy(x => x.Shot).ThenBy(x => x.Path, StringComparer.OrdinalIgnoreCase))
                 {
-                    var row = new CropMappingRowViewModel(item.Path, def, OnMappingRowChanged);
-                    PhotographerMappingService.ApplyRuslanRow(row, item.Shot, refNames, def);
-                    MappingRows.Add(row);
+                    var row = new CropMappingRowViewModel(item.Path, def, OnCropRowReferenceChanged);
+                    if (!TryApplyPersistedCropFrameChoice(row, refNames))
+                        PhotographerMappingService.ApplyRuslanRow(row, item.Shot, refNames, def);
+                    AddMappingRow(row);
                 }
 
                 foreach (var path in withoutShot.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
                 {
-                    var matched = ReferenceNameMatcher.TryMatch(path, refNames) ?? def;
-                    MappingRows.Add(new CropMappingRowViewModel(path, matched, OnMappingRowChanged));
+                    var row = new CropMappingRowViewModel(path, def, OnCropRowReferenceChanged);
+                    if (!TryApplyPersistedCropFrameChoice(row, refNames))
+                    {
+                        var matched = ReferenceNameMatcher.TryMatch(path, refNames) ?? def;
+                        PhotographerMappingService.ApplyStemFromChosenReference(row, matched);
+                    }
+
+                    AddMappingRow(row);
                 }
             }
         }
@@ -738,8 +957,14 @@ public partial class MainViewModel : ObservableObject
         {
             foreach (var path in paths)
             {
-                var matched = ReferenceNameMatcher.TryMatch(path, refNames) ?? def;
-                MappingRows.Add(new CropMappingRowViewModel(path, matched, OnMappingRowChanged));
+                var row = new CropMappingRowViewModel(path, def, OnCropRowReferenceChanged);
+                if (!TryApplyPersistedCropFrameChoice(row, refNames))
+                {
+                    var matched = ReferenceNameMatcher.TryMatch(path, refNames) ?? def;
+                    PhotographerMappingService.ApplyStemFromChosenReference(row, matched);
+                }
+
+                AddMappingRow(row);
             }
         }
 
@@ -748,6 +973,7 @@ public partial class MainViewModel : ObservableObject
         NotifyBatchCommandsChanged();
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
         SchedulePreviewRefresh();
+        ScheduleMappingStatusRefresh();
     }
 
     private void ApplyPhotographer(PhotographerKind photographer)
@@ -1090,8 +1316,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanCommitDraft =>
-        IsAdvancedView
-        && SelectedProduct.IsDraft
+        SelectedProduct.IsDraft
         && Directory.Exists(ReferenceFolder)
         && Directory.Exists(ZonaFolder);
 
@@ -1113,7 +1338,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        UserProfileBundleService.WriteBundle(src.DisplayName, ReferenceFolder, ZonaFolder, color);
+        UserProfileBundleService.WriteBundleAsync(src.DisplayName, ReferenceFolder, ZonaFolder, color)
+            .ConfigureAwait(false).GetAwaiter().GetResult();
         var name = src.DisplayName;
         RemoveDraftFromList();
         _draftSourceProfile = null;
@@ -1139,7 +1365,8 @@ public partial class MainViewModel : ObservableObject
 
         var color = GetEffectiveColorFor(SelectedProduct);
         var name = nameDlg.Result.Trim();
-        UserProfileBundleService.WriteBundle(name, ReferenceFolder, ZonaFolder, color);
+        UserProfileBundleService.WriteBundleAsync(name, ReferenceFolder, ZonaFolder, color)
+            .ConfigureAwait(false).GetAwaiter().GetResult();
         RemoveDraftFromList();
         _draftSourceProfile = null;
         ReloadCustomProfilesFromDisk();
@@ -1166,7 +1393,7 @@ public partial class MainViewModel : ObservableObject
 
     private void ConsiderDraftPromotion()
     {
-        if (!IsAdvancedView || SelectedProduct.IsDraft)
+        if (SelectedProduct.IsDraft)
             return;
         if (!FoldersDivergeFromSelectedProduct())
             return;
@@ -1201,7 +1428,7 @@ public partial class MainViewModel : ObservableObject
         AllProducts.Insert(CountLeadingNonDraftCatalogProfiles(), draft);
         SelectedProduct = draft;
         InvalidateProfileMenu();
-        AppendLog("Черновик: «Несохранённые изменения». Сохраните через кнопки ниже.");
+        AppendLog("Черновик: «Несохранённые изменения». Сохраните через меню «Профиль» (пункты про черновик).");
     }
 
     private void PromoteToDraftForColor(ColorCorrectionSettings settings)
@@ -1241,7 +1468,8 @@ public partial class MainViewModel : ObservableObject
 
         if (AppPaths.IsUserInstallProfile(src))
         {
-            UserProfileBundleService.WriteBundle(src.DisplayName, ReferenceFolder, ZonaFolder, color);
+            UserProfileBundleService.WriteBundleAsync(src.DisplayName, ReferenceFolder, ZonaFolder, color)
+                .ConfigureAwait(false).GetAwaiter().GetResult();
             RemoveDraftFromList();
             _draftSourceProfile = null;
             ReloadCustomProfilesFromDisk();
@@ -1256,7 +1484,8 @@ public partial class MainViewModel : ObservableObject
         if (nameDlg.ShowDialog() != true || string.IsNullOrWhiteSpace(nameDlg.Result))
             return false;
 
-        UserProfileBundleService.WriteBundle(nameDlg.Result.Trim(), ReferenceFolder, ZonaFolder, color);
+        UserProfileBundleService.WriteBundleAsync(nameDlg.Result.Trim(), ReferenceFolder, ZonaFolder, color)
+            .ConfigureAwait(false).GetAwaiter().GetResult();
         RemoveDraftFromList();
         _draftSourceProfile = null;
         ReloadCustomProfilesFromDisk();
@@ -1402,7 +1631,10 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            AppendLog("Старт пакета (полный кадр + референс + ручные правки)…");
+            AppendLog("Ожидание завершения фоновой обработки очереди (статусы, авто-подгонка в редакторе), чтобы не грузить машину параллельно с пакетом…");
+            await AppPipelineHeavyGate.WaitUntilIdleAsync(_batchRun.Token).ConfigureAwait(true);
+
+            AppendLog("Старт пакета (полный кадр + референс; сохранённые правки или авто-подгонка)…");
             AppendLog($"Вход: {inputRoot} (включая вложенные папки, файлов: {jobs.Count}).");
             switch (SelectedPhotographer)
             {
@@ -1427,11 +1659,19 @@ public partial class MainViewModel : ObservableObject
                 AppendLog($"Выход: {explicitOut}\\<подпапка>\\ (структура как во входе).");
             }
 
+            if (RunThroughPhotoshopDroplets)
+            {
+                AppendLog(
+                    "Дроплеты Photoshop: после записи каждого кадра — 01 → 01_drop.exe · 02,03,04,08 → 02-03-04-08_drop.exe · 05,06,07 → 05-06-07_drop.exe");
+                AppendLog(PhotoshopDropletLauncher.DescribeInstallationForLog());
+            }
+
             var edge = (int)Math.Clamp(Math.Round(AnalysisMaxEdge), 256, 8192);
             var zona = hasZona ? ZonaFolder : null;
             var color = GetEffectiveColorFor(SelectedProduct);
             var applyColor = ApplyColorCorrection;
             var webp = SaveAsWebP;
+            var droplets = RunThroughPhotoshopDroplets;
 
             var result = await Task.Run(() =>
             {
@@ -1446,7 +1686,8 @@ public partial class MainViewModel : ObservableObject
                     zona,
                     color,
                     applyColor,
-                    webp);
+                    webp,
+                    droplets);
             }, _batchRun.Token);
 
             if (!result.Cancelled)
@@ -1459,8 +1700,13 @@ public partial class MainViewModel : ObservableObject
                 var donePhrase = ZonaMessages.NextDone();
                 AppendLog(donePhrase, LogLineKind.Zona, fromZona: true);
                 var summary =
-                    $"✅ Успешно: {result.Succeeded}, ошибок: {result.Errors}, всего: {result.Total}. Время: {elapsed}.";
+                    $"✅ Успешно: {result.Succeeded}, ошибок: {result.Errors}, всего: {result.Total}. "
+                    + $"✓ сохранённые: {result.ManualSaved}, ⚠ авто: {result.AutoAligned}, "
+                    + $"низкое качество: {result.LowQuality}, проверить: {result.NeedsReview}. "
+                    + $"Время: {elapsed}.";
                 AppendLog(summary, LogLineKind.Done);
+                if (result.AutoAligned > 0 || result.NeedsReview > 0)
+                    AppendLog("Строки с ⚠ — откройте в редакторе и при необходимости сохраните правки (✓ в пакете).");
                 NotifyTelegram(
                     $"{donePhrase}\n\n{summary}\nПрофиль: {SelectedProduct.DisplayName}");
             }
@@ -1543,11 +1789,16 @@ public partial class MainViewModel : ObservableObject
         _previewDebounce.Start();
     }
 
+    /// <summary>Вызов из редактора кадра после сохранения правок в json.</summary>
+    public void RequestPreviewRefresh() => SchedulePreviewRefresh();
+
     private void ClearPreviewImages()
     {
         PreviewReference = null;
         PreviewBefore = null;
         PreviewAfter = null;
+        PreviewAfterAuto = null;
+        PreviewExportSourceText = string.Empty;
     }
 
     private async Task SetPreviewLoadingUiAsync(bool loading, string statusText)
@@ -1588,7 +1839,7 @@ public partial class MainViewModel : ObservableObject
             await SetPreviewLoadingUiAsync(true, "Загрузка изображений и расчёт кадра…");
 
             var edge = (int)Math.Clamp(Math.Round(AnalysisMaxEdge), 256, 8192);
-            const int thumb = 520;
+            const int thumb = 400;
             var color = GetEffectiveColorFor(SelectedProduct);
             var applyColor = ApplyColorCorrection;
             var profileName = SelectedProduct.DisplayName;
@@ -1599,20 +1850,62 @@ public partial class MainViewModel : ObservableObject
                 BitmapSource? r = null;
                 BitmapSource? b = null;
                 BitmapSource? a = null;
+                BitmapSource? aAuto = null;
+                var exportSource = string.Empty;
 
                 await Task.Run(() =>
                 {
                     r = CropPreviewBitmapFactory.LoadThumbnail(refPath, thumb);
                     b = CropPreviewBitmapFactory.LoadThumbnail(row.InputPath, thumb);
 
-                    a = CropPreviewBitmapFactory.LoadCroppedPreview(
-                        row.InputPath, refPath, edge, thumb, color, applyColor,
-                        row.RotateCounterClockwise90, row.OutputFileStem, zonaDir, profileName);
+                    var (exportFrame, autoFrame) = ManualShotFrameResolver.ResolveExportAndAuto(
+                        row.InputPath,
+                        refPath,
+                        profileName,
+                        row.OutputFileStem,
+                        zonaDir,
+                        edge,
+                        row.RotateCounterClockwise90);
+
+                    var reference = AutoCropComputation.AnalyzeReference(refPath, edge);
+                    using (var full = CropPreviewBitmapFactory.TryLoadPreparedFullForManualFrame(
+                               row.InputPath, row.OutputFileStem, edge, row.RotateCounterClockwise90))
+                    {
+                        if (full is not null)
+                        {
+                            var rw = (int)reference.RefW;
+                            var rh = (int)reference.RefH;
+                            using var composed = ManualShotAdjustApplier.ComposeFromFullToReference(
+                                full, exportFrame.Adjust, rw, rh);
+                            exportFrame = FrameAlignQualityService.EnrichWithQuality(
+                                exportFrame, composed, reference, edge);
+                        }
+                    }
+
+                    var template = ReferenceCompositionCatalog.GetOrBuild(refPath, edge);
+                    exportSource =
+                        $"Экспорт: {exportFrame.ProvenanceLabel} · эталон {template.Stem} "
+                        + $"({template.CenterXFrac * 100:0.#}%×{template.CenterYFrac * 100:0.#}%, "
+                        + $"товар {template.WidthFrac * 100:0.#}%×{template.HeightFrac * 100:0.#}%)";
+                    if (!double.IsNaN(exportFrame.AlignQualityScore))
+                        exportSource += $" · {exportFrame.AlignQualityScore:0}%";
+                    if (exportFrame.IsLowAlignQuality)
+                        exportSource += " ⚠";
+
+                    a = CropPreviewBitmapFactory.LoadCroppedPreviewResolved(
+                        row.InputPath, refPath, edge, thumb, exportFrame, color, applyColor,
+                        row.RotateCounterClockwise90);
+
+                    aAuto = CropPreviewBitmapFactory.LoadCroppedPreviewResolved(
+                        row.InputPath, refPath, edge, thumb, autoFrame, color, applyColor,
+                        row.RotateCounterClockwise90);
                 });
 
                 PreviewReference = r;
                 PreviewBefore = b;
                 PreviewAfter = a;
+                PreviewAfterAuto = aAuto;
+                PreviewExportSourceText = exportSource;
             }
             catch
             {

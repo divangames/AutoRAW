@@ -5,4 +5,8 @@ public readonly record struct BatchRunResult(
     int Total,
     int Succeeded,
     int Errors,
-    TimeSpan ActiveElapsed);
+    TimeSpan ActiveElapsed,
+    int ManualSaved = 0,
+    int AutoAligned = 0,
+    int NeedsReview = 0,
+    int LowQuality = 0);

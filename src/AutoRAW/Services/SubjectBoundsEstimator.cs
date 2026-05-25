@@ -13,7 +13,8 @@ namespace AutoRAW.Services;
 /// </summary>
 public static class SubjectBoundsEstimator
 {
-    public const int DefaultAnalysisMaxEdge = 1600;
+    /// <summary>Баланс скорость/RAW: ниже — быстрее пакет и превью; ползунок на главном окне можно поднять.</summary>
+    public const int DefaultAnalysisMaxEdge = 1024;
 
     /// <summary>
     /// Сужает ширину bbox по вертикальной проекции краёв (Sobel) внутри прямоугольника.
@@ -24,6 +25,8 @@ public static class SubjectBoundsEstimator
         if (bgr.Empty() || subject.Width < 16 || subject.Height < 16)
             return subject;
 
+        using var bgr3 = EnsureBgr(bgr);
+
         var x0 = (int)Math.Floor(Math.Max(0, subject.X));
         var y0 = (int)Math.Floor(Math.Max(0, subject.Y));
         var x1 = (int)Math.Ceiling(Math.Min(bgr.Cols, subject.Right));
@@ -31,7 +34,7 @@ public static class SubjectBoundsEstimator
         if (x1 - x0 < 16 || y1 - y0 < 12)
             return subject;
 
-        using var roi = new Mat(bgr, new OpenCvSharp.Rect(x0, y0, x1 - x0, y1 - y0));
+        using var roi = new Mat(bgr3, new OpenCvSharp.Rect(x0, y0, x1 - x0, y1 - y0));
         using var gray = new Mat();
         Cv2.CvtColor(roi, gray, ColorConversionCodes.BGR2GRAY);
 
@@ -121,13 +124,14 @@ public static class SubjectBoundsEstimator
         if (bgr.Empty())
             return new Box2d(0, 0, 1, 1);
 
+        using var bgrWork = EnsureBgr(bgr);
         using var gray = new Mat();
-        Cv2.CvtColor(bgr, gray, ColorConversionCodes.BGR2GRAY);
+        Cv2.CvtColor(bgrWork, gray, ColorConversionCodes.BGR2GRAY);
         using var blur = new Mat();
         Cv2.GaussianBlur(gray, blur, new OpenCvSharp.Size(7, 7), 0);
 
-        var cols = bgr.Cols;
-        var rows = bgr.Rows;
+        var cols = bgrWork.Cols;
+        var rows = bgrWork.Rows;
 
         // Отсекаем тёмную горизонтальную полосу снизу (стол/плинтус в предметной съёмке)
         var effectiveRows = FindEffectiveRows(blur, cols, rows);
@@ -495,5 +499,21 @@ public static class SubjectBoundsEstimator
             }
         }
         return best;
+    }
+
+    /// <summary>OpenCV-операции ниже ожидают BGR (3 канала).</summary>
+    private static Mat EnsureBgr(Mat src)
+    {
+        if (src.Channels() == 3)
+            return src.Clone();
+
+        var dst = new Mat();
+        if (src.Channels() == 1)
+            Cv2.CvtColor(src, dst, ColorConversionCodes.GRAY2BGR);
+        else if (src.Channels() == 4)
+            Cv2.CvtColor(src, dst, ColorConversionCodes.BGRA2BGR);
+        else
+            throw new InvalidOperationException($"Unsupported Mat channels: {src.Channels()}");
+        return dst;
     }
 }

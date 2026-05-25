@@ -1,17 +1,39 @@
+using AutoRAW.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AutoRAW.ViewModels;
 
 public partial class CropMappingRowViewModel : ObservableObject
 {
-    private readonly Action? _notifyParent;
+    private readonly Action<CropMappingRowViewModel>? _notifyParent;
 
-    public CropMappingRowViewModel(string inputPath, string selectedReferenceFile, Action? notifyParent = null)
+    public CropMappingRowViewModel(
+        string inputPath,
+        string selectedReferenceFile,
+        Action<CropMappingRowViewModel>? notifyParent = null)
     {
         _notifyParent = notifyParent;
         _inputPath = inputPath;
         _selectedReferenceFile = selectedReferenceFile;
     }
+
+    /// <summary>Путь относительно папки «Товар» для списка очереди.</summary>
+    [ObservableProperty]
+    private string _relativeDisplayPath = string.Empty;
+
+    [ObservableProperty]
+    private string _alignStatusGlyph = "…";
+
+    [ObservableProperty]
+    private string _alignStatusToolTip = string.Empty;
+
+    [ObservableProperty]
+    private FrameAlignStatusKind _alignStatusKind = FrameAlignStatusKind.Pending;
+
+    public string QueueLineText =>
+        string.IsNullOrEmpty(RelativeDisplayPath)
+            ? InputFileName
+            : RelativeDisplayPath;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InputFileName))]
@@ -39,6 +61,6 @@ public partial class CropMappingRowViewModel : ObservableObject
             ? Path.GetFileNameWithoutExtension(SelectedReferenceFile)
             : OutputFileStem;
 
-    partial void OnSelectedReferenceFileChanged(string value) => _notifyParent?.Invoke();
+    partial void OnSelectedReferenceFileChanged(string value) => _notifyParent?.Invoke(this);
 }
 

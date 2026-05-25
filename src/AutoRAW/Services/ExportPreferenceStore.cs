@@ -18,6 +18,9 @@ public static class ExportPreferenceStore
     {
         /// <summary>По умолчанию true — сохранять в WebP; false — JPEG как раньше.</summary>
         public bool SaveAsWebP { get; set; } = true;
+
+        /// <summary>После записи каждого кадра пакета — передать путь дроплету Photoshop (папка droplets).</summary>
+        public bool RunThroughPhotoshopDroplets { get; set; }
     }
 
     private static string FilePath => AppPaths.ExportPreferencesFile;
@@ -51,6 +54,15 @@ public static class ExportPreferenceStore
     {
         var root = Load();
         root.SaveAsWebP = value;
+        Save(root);
+    }
+
+    public static bool GetRunThroughPhotoshopDroplets() => Load().RunThroughPhotoshopDroplets;
+
+    public static void SetRunThroughPhotoshopDroplets(bool value)
+    {
+        var root = Load();
+        root.RunThroughPhotoshopDroplets = value;
         Save(root);
     }
 }

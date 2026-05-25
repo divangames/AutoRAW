@@ -63,6 +63,13 @@ public static class UserProfileBundleService
     /// Записывает профиль: копирует reference и zona (Zona) в подкаталоги с именем профиля,
     /// XMP в setting, манифест. Структура: reference\имя\, zona\имя\ (как reference\Sneakers у встроенного профиля).
     /// </summary>
+    public static Task<ProductProfile> WriteBundleAsync(
+        string displayName,
+        string sourceReferenceDir,
+        string sourceZonaDir,
+        ColorCorrectionSettings color) =>
+        Task.Run(() => WriteBundle(displayName, sourceReferenceDir, sourceZonaDir, color));
+
     public static ProductProfile WriteBundle(string displayName, string sourceReferenceDir, string sourceZonaDir, ColorCorrectionSettings color)
     {
         EnsureDirectories();

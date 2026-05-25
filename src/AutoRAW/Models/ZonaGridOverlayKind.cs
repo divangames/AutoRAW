@@ -1,11 +1,11 @@
 namespace AutoRAW.Models;
 
-/// <summary>Сетка-ориентир из zona (только в редакторе / превью, не в файл результата).</summary>
+/// <summary>Сетка-ориентир в редакторе (не в экспорт): линии по правилам макета.</summary>
 public enum ZonaGridOverlayKind
 {
     None = 0,
-    /// <summary><c>zona_tovara_01.png</c> (фото 01).</summary>
-    Photo01 = 1,
-    /// <summary><c>zona_tovara_02.png</c> (остальные кадры).</summary>
-    OtherPhotos = 2
+    /// <summary>Красные линии из <see cref="Services.SneakersLayoutSafeZone"/> по номеру кадра.</summary>
+    LayoutRules = 1,
+    /// <summary>Совместимость: старые сохранения «zona_tovara_02».</summary>
+    LegacyRules020408 = 2
 }

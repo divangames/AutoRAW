@@ -16,9 +16,10 @@ $RepoRoot   = $PSScriptRoot
 $ProjFile   = Join-Path $RepoRoot "src\AutoRAW\AutoRAW.csproj"
 $PublishDir = Join-Path $RepoRoot "dist\publish"
 $IssFile    = Join-Path $RepoRoot "installer\AutoRAW.iss"
-$DistVerForInstaller = Join-Path $RepoRoot "dist\changelog_version_for_installer.txt"
+$DistVerAssembly = Join-Path $RepoRoot "dist\changelog_version_assembly.txt"
+$DistVerInfo     = Join-Path $RepoRoot "dist\changelog_version_info.txt"
 
-function Get-InstallerAppVersion {
+function Get-InstallerVersionPair {
     $changelog = Join-Path $RepoRoot "CHANGELOG.md"
     $resolve   = Join-Path $RepoRoot "bat\Resolve-VersionFromChangelog.ps1"
     if (-not (Test-Path -LiteralPath $changelog)) {
@@ -27,7 +28,7 @@ function Get-InstallerAppVersion {
     if (-not (Test-Path -LiteralPath $resolve)) {
         throw "Version resolve script not found: $resolve"
     }
-    $outDir = Split-Path -Parent $DistVerForInstaller
+    $outDir = Split-Path -Parent $DistVerAssembly
     if (-not (Test-Path -LiteralPath $outDir)) {
         New-Item -ItemType Directory -Force -Path $outDir | Out-Null
     }
@@ -35,13 +36,17 @@ function Get-InstallerAppVersion {
         '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-File', $resolve,
         '-ChangelogPath', $changelog,
-        '-OutVersionFile', $DistVerForInstaller
+        '-OutAssemblyVersionFile', $DistVerAssembly,
+        '-OutInformationalVersionFile', $DistVerInfo
     )
     & powershell.exe @psArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Resolve-VersionFromChangelog.ps1 failed, exit code $LASTEXITCODE"
     }
-    return (Get-Content -LiteralPath $DistVerForInstaller -TotalCount 1 -Encoding UTF8).Trim()
+    return [pscustomobject]@{
+        Assembly       = (Get-Content -LiteralPath $DistVerAssembly -TotalCount 1 -Encoding UTF8).Trim()
+        Informational  = (Get-Content -LiteralPath $DistVerInfo -TotalCount 1 -Encoding UTF8).Trim()
+    }
 }
 
 function Find-IsccPath {
@@ -74,6 +79,22 @@ Write-Host "[1/5] Cleaning dist\publish..." -ForegroundColor Cyan
 if (Test-Path $PublishDir) { Remove-Item $PublishDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
 
+function Copy-RepoAssetFolder {
+    param(
+        [string] $FolderName
+    )
+    $src = Join-Path $RepoRoot $FolderName
+    if (-not (Test-Path -LiteralPath $src)) { return }
+    $dst = Join-Path $PublishDir $FolderName
+    if (Test-Path -LiteralPath $dst) { Remove-Item -LiteralPath $dst -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $dst | Out-Null
+    # robocopy: без *.psd (черновики в zona\operation — гигабайты, в рантайме не нужны)
+    $rc = & robocopy.exe $src $dst /E /XF *.psd /R:1 /W:1 /NFL /NDL /NJH /NJS /nc /ns /np
+    if ($LASTEXITCODE -ge 8) {
+        throw "robocopy failed for $FolderName, exit code $LASTEXITCODE"
+    }
+}
+
 Write-Host "[2/5] dotnet publish (Release, win-x64)..." -ForegroundColor Cyan
 & dotnet publish $ProjFile `
     -c Release `
@@ -82,6 +103,7 @@ Write-Host "[2/5] dotnet publish (Release, win-x64)..." -ForegroundColor Cyan
     -p:PublishSingleFile=false `
     -p:DebugType=none `
     -p:DebugSymbols=false `
+    -p:SkipRepoAssetCopy=true `
     --output $PublishDir `
     --nologo
 
@@ -90,15 +112,22 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "[3/5] Copying setting, reference, zona..." -ForegroundColor Cyan
-foreach ($folder in @("setting", "reference", "zona")) {
-    $src = Join-Path $RepoRoot $folder
-    if (Test-Path $src) {
-        $dst = Join-Path $PublishDir $folder
+Write-Host "[3/5] Copying setting, reference, zona, profiles (without *.psd)..." -ForegroundColor Cyan
+foreach ($folder in @("setting", "reference", "zona", "profiles")) {
+    if (Test-Path (Join-Path $RepoRoot $folder)) {
         Write-Host "  -> $folder" -ForegroundColor DarkGray
-        if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }
-        Copy-Item -Path $src -Destination $dst -Recurse -Force
+        Copy-RepoAssetFolder -FolderName $folder
     }
+}
+
+$modelsSrc = Join-Path $RepoRoot "models\subject"
+$modelsDst = Join-Path $PublishDir "models\subject"
+if (Test-Path -LiteralPath $modelsSrc) {
+    New-Item -ItemType Directory -Force -Path $modelsDst | Out-Null
+    Get-ChildItem -LiteralPath $modelsSrc -File | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $modelsDst $_.Name) -Force
+    }
+    Write-Host "  -> models\subject ($(( Get-ChildItem $modelsDst -Filter *.onnx ).Count) onnx)" -ForegroundColor DarkGray
 }
 
 Write-Host "[4/5] Locating Inno Setup (ISCC.exe)..." -ForegroundColor Cyan

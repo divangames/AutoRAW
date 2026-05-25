@@ -1,4 +1,5 @@
 using AutoRAW.Models;
+using AutoRAW.Services.SubjectDetection;
 using ImageMagick;
 using OpenCvSharp;
 
@@ -30,6 +31,19 @@ public static class ReferenceCompositionAlignService
         if (policy == CompositionAlignPolicy.Skip)
             return;
 
+        AlignByPolicy(image, reference, analysisMaxEdge, policy);
+    }
+
+    /// <summary>Выравнивание только по эталону (без line-guide и zona).</summary>
+    public static void AlignByPolicy(
+        MagickImage image,
+        AutoCropComputation.ReferenceMetrics reference,
+        int analysisMaxEdge,
+        CompositionAlignPolicy policy)
+    {
+        if (image.Width < 4 || image.Height < 4 || policy == CompositionAlignPolicy.Skip)
+            return;
+
         var imgW = (double)image.Width;
         var imgH = (double)image.Height;
 
@@ -55,7 +69,10 @@ public static class ReferenceCompositionAlignService
 
         Box2d subject;
         using (var mat = MagickMatConverter.ToMatBgr(analysis))
-            subject = SubjectBoundsEstimator.Estimate(mat).Scale(scale, scale);
+        {
+            var det = SubjectDetectionService.DetectOnMat(mat);
+            subject = (det.IsValid ? det.Subject : SubjectBoundsEstimator.Estimate(mat)).Scale(scale, scale);
+        }
 
         var dx = desiredRelX * imgW - subject.CenterX;
         var dy = desiredRelY * imgH - subject.CenterY;
@@ -70,7 +87,6 @@ public static class ReferenceCompositionAlignService
 
         ApplyTranslation(image, dx, dy);
 
-        // Для проблемных ракурсов — второй проход, если после сдвига ещё заметно смещение
         if (policy != CompositionAlignPolicy.CenterInFrame)
             return;
 
@@ -78,7 +94,10 @@ public static class ReferenceCompositionAlignService
         var scale2 = imgW / analysis2.Width;
         Box2d subject2;
         using (var mat2 = MagickMatConverter.ToMatBgr(analysis2))
-            subject2 = SubjectBoundsEstimator.Estimate(mat2).Scale(scale2, scale2);
+        {
+            var det2 = SubjectDetectionService.DetectOnMat(mat2);
+            subject2 = (det2.IsValid ? det2.Subject : SubjectBoundsEstimator.Estimate(mat2)).Scale(scale2, scale2);
+        }
 
         var dx2 = 0.5 * imgW - subject2.CenterX;
         var dy2 = 0.5 * imgH - subject2.CenterY;

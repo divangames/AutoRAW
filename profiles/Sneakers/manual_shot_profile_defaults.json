@@ -1,0 +1,19 @@
+{
+  "displayName": "Кроссовки",
+  "stemDefaults": {
+    "05": {
+      "offsetX": -142.27272727272714,
+      "offsetY": -58.1818181818182,
+      "zoomPercent": 200,
+      "rotationDeg": 0,
+      "gridOverlay": 0
+    },
+    "07": {
+      "offsetX": 240,
+      "offsetY": -120,
+      "zoomPercent": 250,
+      "rotationDeg": 0,
+      "gridOverlay": 0
+    }
+  }
+}

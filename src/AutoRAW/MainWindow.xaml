@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:AutoRAW.ViewModels"
+        xmlns:controls="clr-namespace:AutoRAW.Controls"
         xmlns:conv="clr-namespace:AutoRAW.Converters"
         mc:Ignorable="d"
         Title="AutoRAW"
@@ -94,10 +95,6 @@
                       StaysOpenOnClick="True"
                       IsChecked="{Binding IsThemeMenuSystem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           </MenuItem>
-          <MenuItem Header="Расширенный режим"
-                    IsCheckable="True"
-                    StaysOpenOnClick="True"
-                    IsChecked="{Binding IsAdvancedView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
           <Separator />
           <MenuItem Header="Редактор положения кадра…"
                     Command="{Binding OpenVisualShotEditorCommand}" />
@@ -128,18 +125,8 @@
                     HorizontalScrollBarVisibility="Disabled"
                     Padding="0,0,4,0">
         <Grid>
-          <!-- Простой режим -->
+          <!-- Основной интерфейс -->
           <Grid>
-            <Grid.Style>
-              <Style TargetType="Grid">
-                <Setter Property="Visibility" Value="Collapsed" />
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding IsAdvancedView}" Value="False">
-                    <Setter Property="Visibility" Value="Visible" />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </Grid.Style>
             <Grid.MinHeight>
               <MultiBinding Converter="{StaticResource PreviewScrollMinHeight}">
                 <Binding ElementName="MainScroll" Path="ViewportHeight" />
@@ -147,6 +134,7 @@
               </MultiBinding>
             </Grid.MinHeight>
             <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
               <RowDefinition Height="Auto" />
@@ -191,10 +179,58 @@
                           Content="Отмена"
                           ToolTip="Прервать кадрирование (строка в журнале будет красной)" />
                 </Grid>
+                <Border Margin="0,12,0,0"
+                        Padding="10,10"
+                        CornerRadius="6"
+                        BorderThickness="2"
+                        BorderBrush="{DynamicResource Theme.Accent}"
+                        Background="{DynamicResource Theme.InfoPanelBg}">
+                  <StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               FontSize="12"
+                               Foreground="{DynamicResource Theme.Accent}"
+                               Text="Photoshop после пакета"
+                               TextWrapping="Wrap" />
+                    <CheckBox Margin="0,8,0,0"
+                              FontWeight="SemiBold"
+                              FontSize="12.5"
+                              Foreground="{DynamicResource Theme.TextPrimary}"
+                              Padding="4,2,0,0"
+                              IsChecked="{Binding RunThroughPhotoshopDroplets, Mode=TwoWay}">
+                      <StackPanel Margin="8,0,0,0">
+                        <TextBlock FontWeight="SemiBold"
+                                   FontSize="12.5"
+                                   TextWrapping="Wrap"
+                                   Text="Прогнать через Дроплеты" />
+                        <TextBlock Margin="0,6,0,0"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource Theme.TextSecondary}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="15"
+                                   MaxWidth="360">
+                          Включается <Run FontWeight="SemiBold">только</Run>
+                          когда запись кадра в пакете уже завершена. Рядом с программой, папка
+                          <Run FontFamily="Consolas">droplets\</Run>
+                          — положите
+                          <Run FontFamily="Consolas">01_drop.exe</Run>
+                          (кадр 01),
+                          <Run FontFamily="Consolas">02-03-04-08_drop.exe</Run>
+                          (02,03,04,08),
+                          <Run FontFamily="Consolas">05-06-07_drop.exe</Run>
+                          (05–07). Программа передаёт каждому процессу полный путь к готовому файлу.
+                        </TextBlock>
+                      </StackPanel>
+                    </CheckBox>
+                  </StackPanel>
+                </Border>
                 <CheckBox Margin="0,10,0,0"
                           FontSize="12"
                           Content="Сохранять результат в WebP (.webp); снять галочку — JPEG (.jpg)"
                           IsChecked="{Binding SaveAsWebP, Mode=TwoWay}" />
+                <CheckBox Margin="0,6,0,0"
+                          FontSize="12"
+                          Content="Открывать NEF/RAW через LibRaw (иначе ImageMagick; при сбое LibRaw — Magick)"
+                          IsChecked="{Binding UseLibRawForRaw, Mode=TwoWay}" />
               </StackPanel>
             </Border>
 
@@ -250,6 +286,66 @@
             </GroupBox>
 
             <GroupBox Grid.Row="2"
+                      Header="{Binding MappingQueueHeader, Mode=OneWay}">
+              <StackPanel>
+                <Grid Margin="0,0,0,6">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0">
+                    <TextBlock FontSize="10.5"
+                               Foreground="{DynamicResource Theme.TextHint}"
+                               Text="✓ сохранённые · ⚠ авто или низкое качество · … оценка" />
+                    <Grid Margin="0,4,0,0">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Grid.Column="0"
+                                 VerticalAlignment="Center"
+                                 Margin="0,0,8,0"
+                                 FontSize="10.5"
+                                 Foreground="{DynamicResource Theme.TextSubtle}"
+                                 Text="Порог %" />
+                      <Slider Grid.Column="1"
+                              Minimum="50"
+                              Maximum="90"
+                              TickFrequency="5"
+                              IsSnapToTickEnabled="True"
+                              Value="{Binding MinAlignQualityPercent, Mode=TwoWay}" />
+                    </Grid>
+                  </StackPanel>
+                  <CheckBox Grid.Column="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Content="Только ⚠"
+                            IsChecked="{Binding ShowOnlyWarningRows, Mode=TwoWay}" />
+                </Grid>
+                <ListBox ItemsSource="{Binding MappingRowsView}"
+                         SelectedItem="{Binding SelectedMappingRow, Mode=TwoWay}"
+                         MaxHeight="140"
+                         BorderThickness="1"
+                         BorderBrush="{DynamicResource Theme.CardBorder}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Orientation="Horizontal" ToolTip="{Binding AlignStatusToolTip}">
+                        <TextBlock Width="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Theme.Accent}"
+                                   Text="{Binding AlignStatusGlyph}" />
+                        <TextBlock Text="{Binding QueueLineText}"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="480" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </StackPanel>
+            </GroupBox>
+
+            <GroupBox Grid.Row="3"
                       Header="Цветовой профиль"
                       Visibility="{Binding IsColorProfilePanelVisible, Converter={StaticResource BoolToVis}}">
               <StackPanel>
@@ -268,8 +364,8 @@
               </StackPanel>
             </GroupBox>
 
-            <GroupBox Grid.Row="3"
-                      Header="Превью"
+            <GroupBox Grid.Row="4"
+                      Header="Превью: референс · до · авто · экспорт"
                       VerticalAlignment="Stretch"
                       Visibility="{Binding IsPreviewPanelVisible, Converter={StaticResource BoolToVis}}">
               <Grid VerticalAlignment="Stretch">
@@ -277,6 +373,7 @@
                   <RowDefinition Height="Auto" />
                   <RowDefinition Height="Auto" />
                   <RowDefinition Height="*" />
+                  <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <StackPanel Grid.Row="0"
                             Margin="0,0,0,8"
@@ -317,11 +414,38 @@
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
-                  <DockPanel Grid.Column="0" Margin="0,0,6,0" VerticalAlignment="Stretch">
+                  <DockPanel Grid.Column="0" Margin="0,0,4,0" VerticalAlignment="Stretch">
                     <TextBlock DockPanel.Dock="Top"
                                Margin="0,0,0,4"
-                               FontSize="12"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Theme.TextBody}"
+                               Text="Референс" />
+                    <Border BorderBrush="{DynamicResource Theme.CardBorder}"
+                            BorderThickness="1"
+                            Background="{DynamicResource Theme.PreviewSurface}"
+                            CornerRadius="1"
+                            VerticalAlignment="Stretch"
+                            MinHeight="100">
+                      <Grid>
+                        <Image Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Source="{Binding PreviewReference}" />
+                        <controls:BusySpinner HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Visibility="{Binding IsPreviewLoading, Converter={StaticResource BoolToVis}}" />
+                      </Grid>
+                    </Border>
+                  </DockPanel>
+                  <DockPanel Grid.Column="1" Margin="4,0,4,0" VerticalAlignment="Stretch">
+                    <TextBlock DockPanel.Dock="Top"
+                               Margin="0,0,0,4"
+                               FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource Theme.TextBody}"
                                Text="До" />
@@ -330,367 +454,76 @@
                             Background="{DynamicResource Theme.PreviewSurface}"
                             CornerRadius="1"
                             VerticalAlignment="Stretch"
-                            MinHeight="120">
-                      <Image Stretch="Uniform"
-                             VerticalAlignment="Center"
-                             HorizontalAlignment="Center"
-                             RenderOptions.BitmapScalingMode="HighQuality"
-                             Source="{Binding PreviewBefore}" />
+                            MinHeight="100">
+                      <Grid>
+                        <Image Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Source="{Binding PreviewBefore}" />
+                        <controls:BusySpinner HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Visibility="{Binding IsPreviewLoading, Converter={StaticResource BoolToVis}}" />
+                      </Grid>
                     </Border>
                   </DockPanel>
-                  <DockPanel Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Stretch">
+                  <DockPanel Grid.Column="2" Margin="4,0,4,0" VerticalAlignment="Stretch">
                     <TextBlock DockPanel.Dock="Top"
                                Margin="0,0,0,4"
-                               FontSize="12"
+                               FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource Theme.TextBody}"
-                               Text="После" />
+                               Text="После (авто)" />
                     <Border BorderBrush="{DynamicResource Theme.CardBorder}"
                             BorderThickness="1"
                             Background="{DynamicResource Theme.PreviewSurface}"
                             CornerRadius="1"
                             VerticalAlignment="Stretch"
-                            MinHeight="120">
-                      <Image Stretch="Uniform"
-                             VerticalAlignment="Center"
-                             HorizontalAlignment="Center"
-                             RenderOptions.BitmapScalingMode="HighQuality"
-                             Source="{Binding PreviewAfter}" />
+                            MinHeight="100">
+                      <Grid>
+                        <Image Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Source="{Binding PreviewAfterAuto}" />
+                        <controls:BusySpinner HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Visibility="{Binding IsPreviewLoading, Converter={StaticResource BoolToVis}}" />
+                      </Grid>
+                    </Border>
+                  </DockPanel>
+                  <DockPanel Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Stretch">
+                    <TextBlock DockPanel.Dock="Top"
+                               Margin="0,0,0,4"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Theme.TextBody}"
+                               Text="После (экспорт)" />
+                    <Border BorderBrush="{DynamicResource Theme.CardBorder}"
+                            BorderThickness="1"
+                            Background="{DynamicResource Theme.PreviewSurface}"
+                            CornerRadius="1"
+                            VerticalAlignment="Stretch"
+                            MinHeight="100">
+                      <Grid>
+                        <Image Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Source="{Binding PreviewAfter}" />
+                        <controls:BusySpinner HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Visibility="{Binding IsPreviewLoading, Converter={StaticResource BoolToVis}}" />
+                      </Grid>
                     </Border>
                   </DockPanel>
                 </Grid>
-              </Grid>
-            </GroupBox>
-          </Grid>
-
-          <!-- Расширенный режим -->
-          <Grid>
-            <Grid.Style>
-              <Style TargetType="Grid">
-                <Setter Property="Visibility" Value="Collapsed" />
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding IsAdvancedView}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </Grid.Style>
-            <Grid.MinHeight>
-              <MultiBinding Converter="{StaticResource PreviewScrollMinHeight}">
-                <Binding ElementName="MainScroll" Path="ViewportHeight" />
-                <Binding Path="IsPreviewPanelVisible" />
-              </MultiBinding>
-            </Grid.MinHeight>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="{Binding IsPreviewPanelVisible, Converter={StaticResource BoolToPreviewRowLength}}" />
-            </Grid.RowDefinitions>
-
-            <Border Grid.Row="0"
-                    Background="{DynamicResource Theme.CardBg}"
-                    BorderBrush="{DynamicResource Theme.CardBorder}"
-                    BorderThickness="1"
-                    CornerRadius="2"
-                    Padding="12,10"
-                    Margin="0,0,0,8">
-              <StackPanel>
-                <TextBlock TextWrapping="Wrap"
-                           FontSize="11.5"
-                           Foreground="{DynamicResource Theme.TextMuted}"
-                           LineHeight="16"
-                           Text="Для каждого файла — свой референс. Превью совпадает с экспортом. Пути reference и папка Zona (`zona`) по умолчанию из профиля (меню «Профиль»)." />
-                <Grid Margin="0,10,0,0"
-                      ToolTip="Запуск, пауза и продолжение — одна кнопка. «Отмена» прерывает пакет.">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <Button Grid.Column="0"
-                          HorizontalAlignment="Stretch"
-                          MinWidth="0"
-                          Style="{StaticResource PrimaryActionButtonStyle}"
-                          Command="{Binding BatchPrimaryClickCommand}"
-                          Content="{Binding BatchPrimaryButtonText}" />
-                  <Button Grid.Column="2"
-                          Style="{StaticResource CancelBatchButtonStyle}"
-                          Command="{Binding CancelBatchCommand}"
-                          Content="Отмена"
-                          ToolTip="Прервать кадрирование" />
-                </Grid>
-                <Grid Margin="0,10,0,0">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                  </Grid.ColumnDefinitions>
-                  <TextBlock Grid.Column="0"
-                             VerticalAlignment="Center"
-                             Margin="0,0,12,0"
-                             FontSize="11"
-                             Foreground="{DynamicResource Theme.TextSubtle}"
-                             TextWrapping="Wrap"
-                             Text="Анализ (длинная сторона)" />
-                  <StackPanel Grid.Column="1">
-                    <Slider Minimum="512"
-                            Maximum="4096"
-                            TickFrequency="64"
-                            IsSnapToTickEnabled="True"
-                            Value="{Binding AnalysisMaxEdge, Mode=TwoWay}" />
-                    <TextBlock Margin="0,2,0,0"
-                               FontSize="11"
-                               Foreground="{DynamicResource Theme.TextHint}"
-                               Text="{Binding AnalysisMaxEdge, StringFormat={}{0:0} px}" />
-                  </StackPanel>
-                </Grid>
-                <CheckBox Margin="0,8,0,0"
-                          FontSize="12"
-                          Content="Сохранять результат в WebP (.webp); снять галочку — JPEG (.jpg)"
-                          IsChecked="{Binding SaveAsWebP, Mode=TwoWay}" />
-                <StackPanel Margin="0,12,0,0">
-                  <TextBlock FontSize="11"
-                             Foreground="{DynamicResource Theme.TextHint}"
-                             TextWrapping="Wrap"
-                             Margin="0,0,0,8"
-                             Text="Профиль на диске: %LocalAppData%\AutoRAW\user files\Profile (reference, zona для технологии Zona, setting). Черновик — «Несохранённые изменения»." />
-                  <Button Margin="0,0,0,6"
-                          HorizontalAlignment="Stretch"
-                          Padding="10,6"
-                          Style="{StaticResource SecondaryButtonStyle}"
-                          Content="Применить к исходному профилю…"
-                          Command="{Binding CommitDraftApplyCommand}" />
-                  <Button HorizontalAlignment="Stretch"
-                          Padding="10,6"
-                          Style="{StaticResource SecondaryButtonStyle}"
-                          Content="Сохранить как новый профиль…"
-                          Command="{Binding CommitDraftNewCommand}" />
-                </StackPanel>
-              </StackPanel>
-            </Border>
-
-            <GroupBox Grid.Row="1" Header="Референс">
-              <StackPanel>
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="12" Text="Папка" />
-                  <TextBox Grid.Column="1" Margin="8,0" Height="26" VerticalContentAlignment="Center"
-                           Text="{Binding ReferenceFolder, UpdateSourceTrigger=PropertyChanged}" />
-                  <Button Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}"
-                          Command="{Binding BrowseReferenceFolderCommand}" Content="Обзор…" />
-                </Grid>
-                <TextBlock Margin="0,8,0,4" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap" Text="По умолчанию" />
-                <ComboBox MinWidth="0"
-                          Margin="0,0,0,6"
-                          VerticalAlignment="Center"
-                          ItemsSource="{Binding ReferenceFiles}"
-                          SelectedItem="{Binding SelectedReferenceFile, Mode=TwoWay}"
-                          IsEditable="False"
-                          ToolTip="Подставляется в строки таблицы ниже." />
-                <Button HorizontalAlignment="Stretch"
-                        Padding="10,5"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Command="{Binding ApplyDefaultReferenceToAllCommand}"
-                        Content="На все строки" />
-              </StackPanel>
-            </GroupBox>
-
-            <GroupBox Grid.Row="2" Header="Вход, выход и Zona">
-              <StackPanel>
-                <TextBlock FontSize="12" Foreground="{DynamicResource Theme.TextBody}" Text="Вход" />
-                <TextBlock Margin="0,2,0,4"
+                <TextBlock Grid.Row="3"
+                           Margin="0,6,0,0"
                            FontSize="10.5"
                            Foreground="{DynamicResource Theme.TextHint}"
-                           Text="Обзор… или перетащите папку / файлы сюда" />
-                <Border Tag="InputDropZone"
-                        Padding="8,8"
-                        Margin="0,0,0,2"
-                        CornerRadius="4"
-                        BorderThickness="1"
-                        BorderBrush="{DynamicResource Theme.CardBorder}"
-                        Background="Transparent">
-                  <Grid>
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0"
-                             Margin="0,0,8,0"
-                             Height="26"
-                             VerticalContentAlignment="Center"
-                             Text="{Binding InputFolder, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Grid.Column="1"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Command="{Binding BrowseInputFolderCommand}"
-                            Content="Обзор…" />
-                  </Grid>
-                </Border>
-                <TextBlock Margin="0,10,0,0" FontSize="12" Foreground="{DynamicResource Theme.TextBody}" Text="Выход" />
-                <Grid Margin="0,4,0,0">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <TextBox Grid.Column="0" Margin="0,0,8,0" Height="26" VerticalContentAlignment="Center"
-                           Text="{Binding OutputFolder, UpdateSourceTrigger=PropertyChanged}"
-                           ToolTip="Пусто — вход\webp|jpg\подпапка\. Задана — выход\подпапка\." />
-                  <Button Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}"
-                          Command="{Binding BrowseOutputFolderCommand}" Content="Обзор…" />
-                </Grid>
-                <TextBlock Margin="0,10,0,0" FontSize="12" Foreground="{DynamicResource Theme.TextBody}"
-                           Text="Zona (маркёры)"
-                           ToolTip="Технология Zona: папка `zona` с изображениями-маркёрами; красная зона задаёт кроп на парном исходнике. Собственная разработка для AutoRAW." />
-                <Grid Margin="0,4,0,0">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <TextBox Grid.Column="0" Margin="0,0,8,0" Height="26" VerticalContentAlignment="Center"
-                           Text="{Binding ZonaFolder, UpdateSourceTrigger=PropertyChanged}" />
-                  <Button Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}"
-                          Command="{Binding BrowseZonaFolderCommand}" Content="Обзор…" />
-                </Grid>
-              </StackPanel>
-            </GroupBox>
-
-            <GroupBox Grid.Row="3"
-                      Header="Цветовой профиль"
-                      Visibility="{Binding IsColorProfilePanelVisible, Converter={StaticResource BoolToVis}}">
-              <StackPanel>
-                <TextBlock TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource Theme.TextMuted}" Text="{Binding ColorSpaceSummaryText, Mode=OneWay}" />
-                <TextBlock Margin="0,2,0,6" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Theme.TextHint}" Text="{Binding ColorNumericSummary, Mode=OneWay}" />
-                <CheckBox FontSize="12"
-                          Content="Применить коррекцию цвета (альфа)"
-                          IsChecked="{Binding ApplyColorCorrection, Mode=TwoWay}"
-                          ToolTip="Включение требует подтверждения. При смене профиля сбрасывается." />
-                <Button Margin="0,8,0,0" HorizontalAlignment="Stretch" Padding="10,5" Style="{StaticResource SecondaryButtonStyle}"
-                        Content="Настроить профиль…"
-                        Command="{Binding EditColorProfileCommand}" />
-              </StackPanel>
-            </GroupBox>
-
-            <GroupBox Grid.Row="4" Header="Файлы и референсы">
-              <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Top"
-                           Margin="0,0,0,6"
-                           FontSize="11"
-                           Foreground="{DynamicResource Theme.TextHint}"
                            TextWrapping="Wrap"
-                           Text="Список из папки входа. Для каждой строки выберите референс (кадр и отступы от объекта)." />
-                <ListBox ItemsSource="{Binding MappingRows}"
-                         MinHeight="120"
-                         MaxHeight="220"
-                         SelectedItem="{Binding SelectedMappingRow, Mode=TwoWay}"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         BorderThickness="0"
-                         Background="Transparent">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:CropMappingRowViewModel}">
-                      <StackPanel Margin="0,3">
-                        <TextBlock VerticalAlignment="Center"
-                                   FontSize="12"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding InputPath}"
-                                   Text="{Binding InputFileName}" />
-                        <TextBlock Margin="0,2,0,0"
-                                   FontSize="10.5"
-                                   Foreground="{DynamicResource Theme.TextHint}"
-                                   Text="{Binding DisplayReferenceLabel, StringFormat=→ {0}}" />
-                        <ComboBox Margin="0,6,0,0"
-                                  VerticalAlignment="Center"
-                                  FontSize="12"
-                                  ItemsSource="{Binding DataContext.ReferenceFiles, RelativeSource={RelativeSource AncestorType=Window}}"
-                                  SelectedItem="{Binding SelectedReferenceFile, Mode=TwoWay}" />
-                      </StackPanel>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
-              </DockPanel>
-            </GroupBox>
-
-            <GroupBox Grid.Row="5"
-                      Header="Превью: референс · до · после"
-                      VerticalAlignment="Stretch"
-                      Visibility="{Binding IsPreviewPanelVisible, Converter={StaticResource BoolToVis}}">
-              <Grid VerticalAlignment="Stretch">
-                <Grid.RowDefinitions>
-                  <RowDefinition Height="Auto" />
-                  <RowDefinition Height="*" />
-                  <RowDefinition Height="*" />
-                  <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <StackPanel Grid.Row="0"
-                            Margin="0,0,0,8"
-                            Visibility="{Binding IsPreviewLoading, Converter={StaticResource BoolToVis}}">
-                  <TextBlock FontSize="11.5"
-                             Foreground="{DynamicResource Theme.TextMuted}"
-                             TextWrapping="Wrap"
-                             Text="{Binding PreviewStatusText, Mode=OneWay}" />
-                  <ProgressBar Style="{StaticResource PreviewLoadProgressStyle}" />
-                </StackPanel>
-                <DockPanel Grid.Row="1" Margin="0,0,0,6" VerticalAlignment="Stretch">
-                  <TextBlock DockPanel.Dock="Top"
-                             Margin="0,0,0,4"
-                             FontSize="11"
-                             FontWeight="SemiBold"
-                             Text="Референс" />
-                  <Border BorderBrush="{DynamicResource Theme.CardBorder}"
-                          BorderThickness="1"
-                          Background="{DynamicResource Theme.PreviewSurface}"
-                          CornerRadius="1"
-                          VerticalAlignment="Stretch"
-                          MinHeight="80">
-                    <Image Stretch="Uniform"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="{Binding PreviewReference}" />
-                  </Border>
-                </DockPanel>
-                <DockPanel Grid.Row="2" Margin="0,0,0,6" VerticalAlignment="Stretch">
-                  <TextBlock DockPanel.Dock="Top"
-                             Margin="0,0,0,4"
-                             FontSize="11"
-                             FontWeight="SemiBold"
-                             Text="До" />
-                  <Border BorderBrush="{DynamicResource Theme.CardBorder}"
-                          BorderThickness="1"
-                          Background="{DynamicResource Theme.PreviewSurface}"
-                          CornerRadius="1"
-                          VerticalAlignment="Stretch"
-                          MinHeight="80">
-                    <Image Stretch="Uniform"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="{Binding PreviewBefore}" />
-                  </Border>
-                </DockPanel>
-                <DockPanel Grid.Row="3" VerticalAlignment="Stretch">
-                  <TextBlock DockPanel.Dock="Top"
-                             Margin="0,0,0,4"
-                             FontSize="11"
-                             FontWeight="SemiBold"
-                             Text="После" />
-                  <Border BorderBrush="{DynamicResource Theme.CardBorder}"
-                          BorderThickness="1"
-                          Background="{DynamicResource Theme.PreviewSurface}"
-                          CornerRadius="1"
-                          VerticalAlignment="Stretch"
-                          MinHeight="80">
-                    <Image Stretch="Uniform"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="{Binding PreviewAfter}" />
-                  </Border>
-                </DockPanel>
+                           Text="{Binding PreviewExportSourceText}" />
               </Grid>
             </GroupBox>
           </Grid>

@@ -183,6 +183,17 @@ public partial class MainWindow : Window
                 CommandParameter = draft
             });
             menu.Items.Add(new Separator());
+            menu.Items.Add(new MenuItem
+            {
+                Header = "Применить черновик к исходному профилю…",
+                Command = vm.CommitDraftApplyCommand
+            });
+            menu.Items.Add(new MenuItem
+            {
+                Header = "Сохранить черновик как новый профиль…",
+                Command = vm.CommitDraftNewCommand
+            });
+            menu.Items.Add(new Separator());
         }
 
         var standardMenu = new MenuItem { Header = "Стандартные", StaysOpenOnClick = true };

@@ -4,7 +4,7 @@ using AutoRAW.Models;
 
 namespace AutoRAW.Services;
 
-/// <summary>Сохранение ручных правок: для всего профиля по номеру кадра и отдельно per-file.</summary>
+/// <summary>Сохранение правок: per-file, профиль по номеру кадра, профиль по имени файла.</summary>
 public static class ManualShotAdjustStore
 {
     private static readonly object Gate = new();
@@ -19,6 +19,9 @@ public static class ManualShotAdjustStore
     private sealed class ManualShotAdjustRoot
     {
         public Dictionary<string, Dictionary<string, ManualShotAdjustDto>> ProfileDefaults { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Внешний ключ — профиль; внутренний — нормализованное имя файла (basename, lower-case).</summary>
+        public Dictionary<string, Dictionary<string, ManualShotAdjustDto>> ProfileByBaseFileName { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, ManualShotAdjustDto> PerFile { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
@@ -55,7 +58,10 @@ public static class ManualShotAdjustStore
     private static void EnsureLoaded()
     {
         if (_root is not null)
+        {
+            EnsureProfileByBaseFileNameDict();
             return;
+        }
 
         try
         {
@@ -73,6 +79,14 @@ public static class ManualShotAdjustStore
         {
             _root = new ManualShotAdjustRoot();
         }
+
+        EnsureProfileByBaseFileNameDict();
+    }
+
+    private static void EnsureProfileByBaseFileNameDict()
+    {
+        if (_root!.ProfileByBaseFileName is null)
+            _root.ProfileByBaseFileName = new Dictionary<string, Dictionary<string, ManualShotAdjustDto>>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static void Save()
@@ -87,6 +101,77 @@ public static class ManualShotAdjustStore
     private static string NormFileKey(string path) =>
         Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
+    /// <summary>Имя файла с расширением, без пути, lower-case (стабильный ключ в json).</summary>
+    private static string NormalizeBaseFileName(string inputPathOrFileName)
+    {
+        var raw = inputPathOrFileName.Trim();
+        var name = Path.GetFileName(raw);
+        return string.IsNullOrEmpty(name) ? string.Empty : name.ToLowerInvariant();
+    }
+
+    public static bool TryGetPerFile(string inputPath, out ManualShotAdjust adjust)
+    {
+        lock (Gate)
+        {
+            EnsureLoaded();
+            if (_root!.PerFile.TryGetValue(NormFileKey(inputPath), out var dto))
+            {
+                adjust = dto.ToModel();
+                return true;
+            }
+        }
+
+        adjust = new ManualShotAdjust();
+        return false;
+    }
+
+    public static bool TryGetProfileBasename(string? profileDisplayName, string inputPath, out ManualShotAdjust adjust)
+    {
+        adjust = new ManualShotAdjust();
+        if (string.IsNullOrWhiteSpace(profileDisplayName))
+            return false;
+
+        var baseKey = NormalizeBaseFileName(inputPath);
+        if (string.IsNullOrEmpty(baseKey))
+            return false;
+
+        lock (Gate)
+        {
+            EnsureLoaded();
+            if (_root!.ProfileByBaseFileName.TryGetValue(profileDisplayName.Trim(), out var byName)
+                && byName.TryGetValue(baseKey, out var dto))
+            {
+                adjust = dto.ToModel();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool TryGetProfileStem(string? profileDisplayName, string shotStem, out ManualShotAdjust adjust)
+    {
+        adjust = new ManualShotAdjust();
+        if (string.IsNullOrWhiteSpace(profileDisplayName))
+            return false;
+
+        lock (Gate)
+        {
+            EnsureLoaded();
+            if (_root!.ProfileDefaults.TryGetValue(profileDisplayName.Trim(), out var byStem)
+                && byStem.TryGetValue(shotStem, out var dto))
+            {
+                adjust = dto.ToModel();
+                return true;
+            }
+        }
+
+        if (SneakersBuiltInManualShotDefaults.TryGetAdjust(profileDisplayName, shotStem, out adjust))
+            return true;
+
+        return false;
+    }
+
     /// <summary>Per-file переопределяет значение профиля по ном кадру.</summary>
     public static ManualShotAdjust Resolve(string? profileDisplayName, string inputPath, string? outputStem)
     {
@@ -97,6 +182,13 @@ public static class ManualShotAdjustStore
             if (_root!.PerFile.TryGetValue(key, out var dto))
                 return dto.ToModel();
 
+            var baseKey = NormalizeBaseFileName(inputPath);
+            if (!string.IsNullOrWhiteSpace(profileDisplayName)
+                && baseKey.Length > 0
+                && _root.ProfileByBaseFileName.TryGetValue(profileDisplayName.Trim(), out var byBase)
+                && byBase.TryGetValue(baseKey, out var baseDto))
+                return baseDto.ToModel();
+
             var stem = ZonaOperationGuideParser.NormalizeShotStem(outputStem, inputPath);
             if (stem is not null
                 && !string.IsNullOrWhiteSpace(profileDisplayName)
@@ -105,6 +197,10 @@ public static class ManualShotAdjustStore
             {
                 return pd.ToModel();
             }
+
+            if (stem is not null
+                && SneakersBuiltInManualShotDefaults.TryGetAdjust(profileDisplayName, stem, out var builtIn))
+                return builtIn;
 
             return new ManualShotAdjust();
         }
@@ -131,6 +227,56 @@ public static class ManualShotAdjustStore
         }
     }
 
+    /// <summary>Правило профиля для всех файлов с таким именем (без пути), пока не удалите через меню.</summary>
+    public static void SetForProfileBasename(string profileDisplayName, string baseFileNameOrPath, ManualShotAdjust value)
+    {
+        lock (Gate)
+        {
+            EnsureLoaded();
+            var name = profileDisplayName.Trim();
+            var bk = NormalizeBaseFileName(baseFileNameOrPath);
+            if (string.IsNullOrEmpty(bk))
+                return;
+
+            if (!_root!.ProfileByBaseFileName.TryGetValue(name, out var inner))
+            {
+                inner = new Dictionary<string, ManualShotAdjustDto>(StringComparer.OrdinalIgnoreCase);
+                _root.ProfileByBaseFileName[name] = inner;
+            }
+
+            if (value.HasPersistableState)
+                inner[bk] = ManualShotAdjustDto.From(value);
+            else
+                inner.Remove(bk);
+
+            if (inner.Count == 0)
+                _root.ProfileByBaseFileName.Remove(name);
+
+            Save();
+        }
+    }
+
+    public static void ClearForProfileBasename(string profileDisplayName, string inputPathOrBaseName)
+    {
+        lock (Gate)
+        {
+            EnsureLoaded();
+            var bk = NormalizeBaseFileName(inputPathOrBaseName);
+            if (string.IsNullOrEmpty(bk))
+                return;
+
+            var name = profileDisplayName.Trim();
+            if (!_root!.ProfileByBaseFileName.TryGetValue(name, out var inner))
+                return;
+
+            inner.Remove(bk);
+            if (inner.Count == 0)
+                _root.ProfileByBaseFileName.Remove(name);
+
+            Save();
+        }
+    }
+
     public static void SetForFile(string inputPath, ManualShotAdjust value)
     {
         lock (Gate)
@@ -143,6 +289,39 @@ public static class ManualShotAdjustStore
                 _root!.PerFile.Remove(key);
 
             Save();
+        }
+    }
+
+    /// <summary>
+    /// Массовая запись per-file одним <see cref="Save"/> — для фоновой авто-подгонки при загрузке папки в редакторе.
+    /// Пропускает ключи, которые уже есть (ручные правки пользователя).
+    /// </summary>
+    public static int UpsertPerFileBatchSkipExisting(IReadOnlyList<(string Path, ManualShotAdjust Adjust)> items)
+    {
+        if (items.Count == 0)
+            return 0;
+
+        lock (Gate)
+        {
+            EnsureLoaded();
+            var n = 0;
+            foreach (var (path, adj) in items)
+            {
+                if (!adj.HasPersistableState)
+                    continue;
+
+                var key = NormFileKey(path);
+                if (_root!.PerFile.ContainsKey(key))
+                    continue;
+
+                _root.PerFile[key] = ManualShotAdjustDto.From(adj);
+                n++;
+            }
+
+            if (n > 0)
+                Save();
+
+            return n;
         }
     }
 
@@ -170,6 +349,26 @@ public static class ManualShotAdjustStore
             }
 
             Save();
+        }
+    }
+
+    /// <summary>Перенести per-file правки при переименовании входного файла на диске.</summary>
+    public static void RenamePerFileKey(string oldInputPath, string newInputPath)
+    {
+        lock (Gate)
+        {
+            EnsureLoaded();
+            var ko = NormFileKey(oldInputPath);
+            var kn = NormFileKey(newInputPath);
+            if (string.Equals(ko, kn, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (_root!.PerFile.TryGetValue(ko, out var dto))
+            {
+                _root.PerFile.Remove(ko);
+                _root.PerFile[kn] = dto;
+                Save();
+            }
         }
     }
 }

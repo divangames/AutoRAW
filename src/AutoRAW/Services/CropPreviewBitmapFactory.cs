@@ -25,17 +25,24 @@ public static class CropPreviewBitmapFactory
     }
 
     /// <summary>Загрузка полного кадра как в редакторе/экспорте (ориентация по стему). Вызывающий обязан Dispose.</summary>
+    /// <param name="clampLoadedImageLongEdge">Если задано — после ориентации исходник ужимается только для этого пути загрузки (превью UI; экспорт и прочее передают null).</param>
     public static MagickImage? TryLoadPreparedFullForManualFrame(
         string inputPath,
         string? outputFileStem,
         int analysisMaxEdge,
-        bool rotateCounterClockwise90 = false)
+        bool rotateCounterClockwise90 = false,
+        int? clampLoadedImageLongEdge = null)
     {
         try
         {
             var full = RasterImageLoader.Load(inputPath);
             if (rotateCounterClockwise90)
                 ImageTransformHelper.RotateCounterClockwise90(full);
+
+            if (clampLoadedImageLongEdge is { } cap && cap >= 64 &&
+                Math.Max(full.Width, full.Height) > (uint)cap)
+                AutoCropComputation.ResizeLongEdgeFitInPlace(full, cap);
+
             ShotCropPolicy.ApplyPreCropOrientation(full, outputFileStem, analysisMaxEdge);
             return full;
         }
@@ -72,6 +79,30 @@ public static class CropPreviewBitmapFactory
                 manualAdjustOverride)
             .Bitmap;
 
+    /// <summary>Превью с уже разрешёнными параметрами кадра (<see cref="ManualShotFrameResolver"/>).</summary>
+    public static BitmapSource? LoadCroppedPreviewResolved(
+        string inputPath,
+        string referencePath,
+        int analysisMaxEdge,
+        int displayMaxEdge,
+        ResolvedManualShotFrame frame,
+        ColorCorrectionSettings? colorCorrection = null,
+        bool applyColorCorrection = false,
+        bool rotateCounterClockwise90 = false) =>
+        LoadCroppedPreviewWithSize(
+                inputPath,
+                referencePath,
+                analysisMaxEdge,
+                displayMaxEdge,
+                colorCorrection,
+                applyColorCorrection,
+                rotateCounterClockwise90,
+                outputFileStem: null,
+                zonaFolder: null,
+                profileDisplayName: null,
+                manualAdjustOverride: frame.Adjust)
+            .Bitmap;
+
     /// <summary>Превью + размер кадра (до уменьшения для экрана).</summary>
     public static (BitmapSource? Bitmap, int OutW, int OutH) LoadCroppedPreviewWithSize(
         string inputPath,
@@ -97,6 +128,10 @@ public static class CropPreviewBitmapFactory
                 ImageTransformHelper.RotateCounterClockwise90(full);
             ShotCropPolicy.ApplyPreCropOrientation(full, outputFileStem, analysisMaxEdge);
 
+            var previewComposeLongEdge = Math.Clamp(displayMaxEdge * 2, 480, 680);
+            var refLong = Math.Max(refW, refH);
+            var composeScale = refLong > 0 ? Math.Min(1.0, previewComposeLongEdge / (double)refLong) : 1.0;
+
             MagickImage? working = null;
             try
             {
@@ -108,7 +143,8 @@ public static class CropPreviewBitmapFactory
                     profileDisplayName,
                     manualAdjustOverride,
                     refW,
-                    refH);
+                    refH,
+                    composeScale);
 
                 if (colorCorrection is not null)
                     ColorCorrectionService.ApplyIfEnabled(working, colorCorrection, applyColorCorrection);
@@ -181,6 +217,7 @@ public static class CropPreviewBitmapFactory
             profileDisplayName,
             manualAdjustOverride);
 
+    /// <param name="composeScale">Доля разрешения превью (1 = как экспорт); меньше — быстрее счёт для экрана.</param>
     private static MagickImage BuildManualFramedOutput(
         MagickImage full,
         string inputPath,
@@ -189,48 +226,42 @@ public static class CropPreviewBitmapFactory
         string? profileDisplayName,
         ManualShotAdjust? manualAdjustOverride,
         int refW,
-        int refH)
+        int refH,
+        double composeScale = 1.0)
     {
         var adj = manualAdjustOverride ?? ManualShotAdjustStore.Resolve(profileDisplayName, inputPath, outputFileStem);
-        var working = ManualShotAdjustApplier.ComposeFromFullToReference(full, adj, refW, refH);
-        TryCompositeGrid(working, zonaFolder, adj.GridOverlay);
+
+        ManualShotAdjust adjUse = adj;
+        var rw = refW;
+        var rh = refH;
+        if (composeScale < 1.0 - 1e-9)
+        {
+            adjUse = adj.Clone();
+            adjUse.OffsetX *= composeScale;
+            adjUse.OffsetY *= composeScale;
+            rw = Math.Max(1, (int)Math.Round(refW * composeScale));
+            rh = Math.Max(1, (int)Math.Round(refH * composeScale));
+        }
+
+        var working = ManualShotAdjustApplier.ComposeFromFullToReference(full, adjUse, rw, rh);
+        TryCompositeGrid(working, outputFileStem, adj.GridOverlay);
         return working;
     }
 
     /// <summary>Сетка только для превью; экспорт без сетки.</summary>
-    public static void CompositeGridForEditorPreview(MagickImage working, string? zonaFolder, ZonaGridOverlayKind kind) =>
-        TryCompositeGrid(working, zonaFolder, kind);
+    public static void CompositeGridForEditorPreview(
+        MagickImage working,
+        string? outputStem,
+        ZonaGridOverlayKind kind) =>
+        TryCompositeGrid(working, outputStem, kind);
 
-    private static void TryCompositeGrid(MagickImage working, string? zonaFolder, ZonaGridOverlayKind kind)
+    private static void TryCompositeGrid(MagickImage working, string? outputStem, ZonaGridOverlayKind kind)
     {
         if (kind == ZonaGridOverlayKind.None)
             return;
 
-        var path = ZonaGridOverlayPaths.TryResolve(zonaFolder, kind);
-        if (path is null)
-            return;
-
-        try
-        {
-            using var grid = new MagickImage(path);
-            grid.FilterType = FilterType.Box;
-            grid.Resize(new MagickGeometry((uint)working.Width, (uint)working.Height));
-            if (!grid.HasAlpha)
-            {
-                grid.Alpha(AlphaOption.Set);
-                grid.Evaluate(Channels.Alpha, EvaluateOperator.Multiply, 0.45);
-            }
-            else
-            {
-                grid.Evaluate(Channels.Alpha, EvaluateOperator.Multiply, 0.45);
-            }
-
-            working.Composite(grid, CompositeOperator.Over);
-        }
-        catch
-        {
-            // превью без сетки
-        }
+        if (kind is ZonaGridOverlayKind.LayoutRules or ZonaGridOverlayKind.LegacyRules020408)
+            SneakersLayoutSafeZone.DrawRulesOverlay(working, outputStem);
     }
 
     private static void FitLongEdge(MagickImage img, int maxEdge)
@@ -238,20 +269,28 @@ public static class CropPreviewBitmapFactory
         if (maxEdge < MinEdge)
             return;
 
-        var m = Math.Max(img.Width, img.Height);
-        if (m <= maxEdge)
-            return;
-
-        var s = maxEdge / (double)m;
-        var nw = Math.Max(1u, (uint)Math.Round(img.Width * s));
-        var nh = Math.Max(1u, (uint)Math.Round(img.Height * s));
-        img.Resize(nw, nh);
+        AutoCropComputation.ResizeLongEdgeFitInPlace(img, maxEdge);
     }
 
-    private static BitmapSource ToBitmapSource(MagickImage img)
+    /// <summary>Клон, уменьшение по длинной стороне и растровый поток для UI (редактор). BMP быстрее PNG при малых размерах.</summary>
+    public static BitmapSource? ToBitmapSourceScaled(MagickImage source, int displayMaxEdge)
+    {
+        try
+        {
+            using var copy = (MagickImage)source.Clone();
+            FitLongEdge(copy, displayMaxEdge);
+            return ToBitmapSource(copy, MagickFormat.Bmp);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static BitmapSource ToBitmapSource(MagickImage img, MagickFormat format)
     {
         using var ms = new MemoryStream();
-        img.Format = MagickFormat.Png;
+        img.Format = format;
         img.Write(ms);
         ms.Position = 0;
 
@@ -264,18 +303,6 @@ public static class CropPreviewBitmapFactory
         return bmp;
     }
 
-    /// <summary>Клон, уменьшение по длинной стороне и PNG для UI (редактор).</summary>
-    public static BitmapSource? ToBitmapSourceScaled(MagickImage source, int displayMaxEdge)
-    {
-        try
-        {
-            using var copy = (MagickImage)source.Clone();
-            FitLongEdge(copy, displayMaxEdge);
-            return ToBitmapSource(copy);
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    private static BitmapSource ToBitmapSource(MagickImage img) =>
+        ToBitmapSource(img, MagickFormat.Png);
 }

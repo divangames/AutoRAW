@@ -3,6 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:AutoRAW.ViewModels"
+        xmlns:controls="clr-namespace:AutoRAW.Controls"
         mc:Ignorable="d"
         x:Name="Root"
         Title="Редактор положения кадра"
@@ -16,233 +18,418 @@
         FontSize="12">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <!-- Контрастнее обычного Secondary на тёмном фоне редактора -->
+    <Style x:Key="VisualEditorToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+      <Setter Property="Foreground" Value="{DynamicResource Theme.TextPrimary}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderActive}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
   </Window.Resources>
-  <ScrollViewer VerticalScrollBarVisibility="Auto"
-                HorizontalScrollBarVisibility="Disabled"
-                Padding="0">
-    <DockPanel Margin="12">
-    <TextBlock DockPanel.Dock="Top"
-               TextWrapping="Wrap"
-               Foreground="{DynamicResource Theme.TextSubtle}"
-               Margin="0,0,0,8">
-      Папки из «Товар» (главное окно) → файлы → полный кадр подгоняется под размер референса (как будет на выходе). Референс — из профиля. Сетка и Zona-маркёры в кропе не участвуют; сетка только на превью.
-    </TextBlock>
+  <DockPanel Background="{DynamicResource Theme.WindowBg}">
+    <Menu DockPanel.Dock="Top"
+          Background="{DynamicResource Theme.MenuBarBg}"
+          Padding="4,2">
+      <MenuItem Header="Файл">
+          <MenuItem Header="Применить профиль">
+          <MenuItem Header="Только для этой фотографии"
+                    Command="{Binding PersistAdjustmentsForCurrentFileCommand}" />
+          <MenuItem Header="{Binding SameFileNameMenuHeader}"
+                    Command="{Binding ApplyAdjustmentsToSameFileNameCommand}" />
+          <MenuItem Header="Убрать правило профиля по имени текущего файла"
+                    Command="{Binding ClearProfileBasenameRuleCommand}" />
+          <MenuItem Header="Сохранить как профиль…"
+                    Command="{Binding SaveAsNewProfileCommand}" />
+        </MenuItem>
+        <Separator />
+        <MenuItem Header="Сохранить для профиля (текущий кадр)"
+                  Command="{Binding SaveStemForProfileCommand}" />
+      </MenuItem>
+    </Menu>
 
-    <Grid>
-      <Grid Visibility="{Binding IsBrowseMode, Converter={StaticResource BoolToVis}}">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="200" />
-          <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <DockPanel Grid.Column="0" Margin="0,0,12,0">
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.TextPrimary}"
-                       Text="Папка" VerticalAlignment="Center" />
-            <Button Content="Пропустить"
-                    Margin="8,0,0,0"
-                    Padding="8,3"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    Command="{Binding IgnoreSelectedFolderCommand}"
-                    ToolTip="Исключить выбранную подпапку из очереди обработки" />
-            <Button Content="Вернуть"
-                    Margin="6,0,0,0"
-                    Padding="8,3"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    Command="{Binding RestoreSelectedFolderCommand}"
-                    ToolTip="Снова включить подпапку в очередь" />
-          </StackPanel>
-          <ListBox ItemsSource="{Binding Folders}"
-                   SelectedItem="{Binding SelectedFolder}"
-                   DisplayMemberPath="ListLabel"
-                   BorderBrush="{DynamicResource Theme.DialogBorder}"
-                   Background="{DynamicResource Theme.DialogBg}" />
-        </DockPanel>
-        <DockPanel Grid.Column="1">
-          <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6" Foreground="{DynamicResource Theme.TextPrimary}"
-                     Text="Файлы" />
-          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding FilesInFolder}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border Width="108"
-                          Height="108"
-                          Margin="4"
-                          BorderBrush="{DynamicResource Theme.DialogBorder}"
-                          BorderThickness="1"
-                          CornerRadius="4"
-                          Background="{DynamicResource Theme.DialogBg}"
-                          Cursor="Hand"
-                          MouseLeftButtonUp="Thumb_OnMouseLeftButtonUp">
-                    <Border.ToolTip>
-                      <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" MaxWidth="360" />
-                    </Border.ToolTip>
-                    <Grid>
-                      <Image Source="{Binding Thumbnail}"
-                             Stretch="UniformToFill"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Center" />
-                      <Border Background="#AA000000"
-                              VerticalAlignment="Bottom"
-                              Opacity="0">
-                        <Border.Style>
-                          <Style TargetType="Border">
-                            <Style.Triggers>
-                              <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Opacity" Value="1" />
-                              </Trigger>
-                            </Style.Triggers>
-                          </Style>
-                        </Border.Style>
-                        <TextBlock Text="Открыть"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4"
-                                   FontWeight="SemiBold" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Padding="0">
+      <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Theme.TextSubtle}"
+                   Margin="0,0,0,8">
+          Папки из «Товар» (главное окно) → файлы → полный кадр подгоняется под размер референса (как будет на выходе). Референс — из профиля. Сетка и Zona-маркёры в кропе не участвуют; сетка только на превью.
+        </TextBlock>
+
+        <Grid>
+          <Grid Visibility="{Binding IsBrowseMode, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="200" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <DockPanel Grid.Column="0" Margin="0,0,12,0">
+              <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.TextPrimary}"
+                           Text="Папка" VerticalAlignment="Center" />
+                <Button Content="Пропустить"
+                        Margin="8,0,0,0"
+                        Padding="8,5"
+                        Style="{StaticResource VisualEditorToolbarButtonStyle}"
+                        Command="{Binding IgnoreSelectedFolderCommand}"
+                        ToolTip="Исключить выбранные подпапки из очереди (Ctrl — несколько)" />
+                <Button Content="Вернуть"
+                        Margin="6,0,0,0"
+                        Padding="8,5"
+                        Style="{StaticResource VisualEditorToolbarButtonStyle}"
+                        Command="{Binding RestoreSelectedFolderCommand}"
+                        ToolTip="Снова включить выбранные подпапки в очередь" />
+              </StackPanel>
+              <ListBox x:Name="FoldersList"
+                       ItemsSource="{Binding Folders}"
+                       DisplayMemberPath="ListLabel"
+                       SelectionMode="Extended"
+                       SelectionChanged="FoldersList_SelectionChanged"
+                       BorderBrush="{DynamicResource Theme.DialogBorder}"
+                       Background="{DynamicResource Theme.DialogBg}"
+                       MinHeight="120" />
+            </DockPanel>
+            <DockPanel Grid.Column="1">
+              <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6" LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.TextPrimary}"
+                           Text="Файлы" />
+                <WrapPanel DockPanel.Dock="Top" Margin="0,6,0,4">
+                  <TextBlock VerticalAlignment="Center" Margin="0,0,8,4" Foreground="{DynamicResource Theme.TextBody}"
+                             Text="Показать:" />
+                  <ComboBox Width="168"
+                            Margin="0,0,12,4"
+                            VerticalAlignment="Center"
+                            SelectedValue="{Binding BrowseFilterKind}"
+                            SelectedValuePath="Tag">
+                    <ComboBoxItem Tag="{x:Static vm:EditorBrowseFilterKind.All}" Content="Все файлы" />
+                    <ComboBoxItem Tag="{x:Static vm:EditorBrowseFilterKind.FilterByFileName}"
+                                  Content="Фильтр по имени" />
+                  </ComboBox>
+                  <TextBox Width="160"
+                           Margin="0,0,12,4"
+                           VerticalAlignment="Center"
+                           VerticalContentAlignment="Center"
+                           Height="26"
+                           ToolTip="Подстрока в имени файла"
+                           Text="{Binding BrowseFilterText, UpdateSourceTrigger=PropertyChanged}">
+                    <TextBox.Style>
+                      <Style TargetType="TextBox">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding BrowseFilterKind}" Value="{x:Static vm:EditorBrowseFilterKind.FilterByFileName}">
+                            <Setter Property="Visibility" Value="Visible" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </TextBox.Style>
+                  </TextBox>
+                  <CheckBox VerticalAlignment="Center"
+                            Margin="0,0,0,4"
+                            Content="Группировать по имени файла"
+                            IsChecked="{Binding BrowseGroupByFileName, Mode=TwoWay}" />
+                </WrapPanel>
+              </DockPanel>
+              <ListBox x:Name="FilesList"
+                       ItemsSource="{Binding FilesView}"
+                       SelectionMode="Extended"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       BorderThickness="0"
+                       Background="Transparent"
+                       Padding="0">
+                <ListBox.GroupStyle>
+                  <GroupStyle>
+                    <GroupStyle.HeaderTemplate>
+                      <DataTemplate>
+                        <TextBlock Margin="0,10,0,4"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Theme.TextPrimary}"
+                                   Text="{Binding Name}" />
+                      </DataTemplate>
+                    </GroupStyle.HeaderTemplate>
+                  </GroupStyle>
+                </ListBox.GroupStyle>
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="4" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                          <Border x:Name="Outer"
+                                  Background="{TemplateBinding Background}"
+                                  BorderBrush="Transparent"
+                                  BorderThickness="1"
+                                  CornerRadius="4"
+                                  Padding="{TemplateBinding Padding}"
+                                  SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                              <Setter TargetName="Outer" Property="BorderBrush" Value="{DynamicResource Theme.BorderActive}" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Width="116">
+                      <!-- Превью в пропорции выходного кадра 1400×1050 -->
+                      <Border Width="108"
+                              Height="81"
+                              BorderBrush="{DynamicResource Theme.DialogBorder}"
+                              BorderThickness="1"
+                              CornerRadius="4"
+                              Background="{DynamicResource Theme.DialogBg}"
+                              Cursor="Hand"
+                              ClipToBounds="True"
+                              MouseLeftButtonUp="Thumb_OnMouseLeftButtonUp">
+                        <Border.ToolTip>
+                          <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" MaxWidth="360" />
+                        </Border.ToolTip>
+                        <Grid>
+                          <Image Source="{Binding Thumbnail}"
+                                 Stretch="UniformToFill"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" />
+                          <controls:BusySpinner HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding IsThumbLoading, Converter={StaticResource BoolToVis}}" />
+                          <Border Background="#AA000000"
+                                  VerticalAlignment="Bottom"
+                                  Opacity="0">
+                            <Border.Style>
+                              <Style TargetType="Border">
+                                <Style.Triggers>
+                                  <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Opacity" Value="1" />
+                                  </Trigger>
+                                </Style.Triggers>
+                              </Style>
+                            </Border.Style>
+                            <TextBlock Text="Открыть"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,4"
+                                       FontWeight="SemiBold" />
+                          </Border>
+                        </Grid>
                       </Border>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </DockPanel>
-      </Grid>
+                      <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <CheckBox IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,6,0"
+                                  ToolTip="Включить файл в очередь пакетной обработки (с Ctrl можно выделить несколько строк)" />
+                        <Grid Width="84">
+                          <TextBlock VerticalAlignment="Center"
+                                     Foreground="{DynamicResource Theme.TextBody}"
+                                     FontSize="11"
+                                     TextTrimming="CharacterEllipsis"
+                                     ToolTip="{Binding FilePath}"
+                                     Text="{Binding FileLabel}"
+                                     PreviewMouseLeftButtonDown="FileName_OnPreviewMouseLeftButtonDown">
+                            <TextBlock.Style>
+                              <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                  <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                  </DataTrigger>
+                                </Style.Triggers>
+                              </Style>
+                            </TextBlock.Style>
+                          </TextBlock>
+                          <TextBox Height="22"
+                                   FontSize="11"
+                                   VerticalContentAlignment="Center"
+                                   Text="{Binding RenameDraft, UpdateSourceTrigger=PropertyChanged}"
+                                   Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVis}}"
+                                   Loaded="RenameBox_Loaded"
+                                   LostFocus="RenameBox_LostFocus"
+                                   KeyDown="RenameBox_KeyDown" />
+                        </Grid>
+                      </StackPanel>
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </Grid>
 
-      <Grid>
-        <Grid.Style>
-          <Style TargetType="Grid">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-              <DataTrigger Binding="{Binding IsBrowseMode}" Value="False">
-                <Setter Property="Visibility" Value="Visible" />
-              </DataTrigger>
-            </Style.Triggers>
-          </Style>
-        </Grid.Style>
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+          <Grid>
+            <Grid.Style>
+              <Style TargetType="Grid">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsBrowseMode}" Value="False">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Grid.Style>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="False">
-          <Button DockPanel.Dock="Left"
-                  Content="← К списку файлов"
-                  Style="{StaticResource SecondaryButtonStyle}"
-                  Padding="10,6"
-                  Margin="0,0,12,0"
-                  Command="{Binding BackToBrowseCommand}" />
-          <TextBlock VerticalAlignment="Center"
-                     Foreground="{DynamicResource Theme.TextBody}"
-                     TextTrimming="CharacterEllipsis">
-            <Run Text="Файл: " />
-            <Run Text="{Binding EditorInputPath, Mode=OneWay}" FontWeight="SemiBold" />
-          </TextBlock>
-        </DockPanel>
-
-        <Grid Grid.Row="1">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="280" />
-          </Grid.ColumnDefinitions>
-
-          <DockPanel Grid.Column="0" Margin="0,0,12,0">
-            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6"
-                       Foreground="{DynamicResource Theme.TextPrimary}"
-                       Text="Результат (тащите мышью — смещение X/Y в px выхода)" />
-            <Border BorderBrush="{DynamicResource Theme.DialogBorder}"
-                    BorderThickness="1"
-                    Background="#202020"
-                    CornerRadius="4"
-                    ClipToBounds="True">
-              <Image x:Name="ResultImage"
-                     Source="{Binding ResultPreview}"
-                     Stretch="Uniform"
-                     HorizontalAlignment="Center"
-                     VerticalAlignment="Center"
-                     MouseLeftButtonDown="ResultImage_OnMouseLeftButtonDown"
-                     MouseMove="ResultImage_OnMouseMove"
-                     MouseLeftButtonUp="ResultImage_OnMouseLeftButtonUp"
-                     MouseLeave="ResultImage_OnMouseLeave" />
-            </Border>
-          </DockPanel>
-
-          <DockPanel Grid.Column="1">
-            <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6"
-                       Foreground="{DynamicResource Theme.TextPrimary}"
-                       Text="Референс" />
-            <Border DockPanel.Dock="Top"
-                    BorderBrush="{DynamicResource Theme.DialogBorder}"
-                    BorderThickness="1"
-                    Height="240"
-                    CornerRadius="4"
-                    Margin="0,0,0,12">
-              <Image Source="{Binding ReferencePreview}" Stretch="Uniform" />
-            </Border>
-
-            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-              <TextBlock Text="Номер кадра (референс / Zona)" Margin="0,0,0,4" Foreground="{DynamicResource Theme.TextBody}" />
-              <ComboBox ItemsSource="{Binding ShotStemChoices}"
-                        SelectedItem="{Binding SelectedShotStem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        MinHeight="28" />
-            </StackPanel>
-
-            <StackPanel>
-              <TextBlock Text="Смещение X (px)" Foreground="{DynamicResource Theme.TextBody}" />
-              <TextBox Text="{Binding OffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
-
-              <TextBlock Text="Смещение Y (px)" Foreground="{DynamicResource Theme.TextBody}" />
-              <TextBox Text="{Binding OffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
-
-              <TextBlock Text="Масштаб (%)" Foreground="{DynamicResource Theme.TextBody}" />
-              <TextBox Text="{Binding ZoomPercent, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
-
-              <TextBlock Text="Поворот (°)" Foreground="{DynamicResource Theme.TextBody}" />
-              <TextBox Text="{Binding RotationDeg, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
-
-            <TextBlock Text="Сетка выравнивания (только превью)" Foreground="{DynamicResource Theme.TextBody}" />
-            <ComboBox ItemsSource="{Binding GridOverlayOptions}"
-                      DisplayMemberPath="Display"
-                      SelectedValuePath="Kind"
-                      SelectedValue="{Binding GridOverlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                      MinHeight="28"
-                      Margin="0,2,0,12" />
-
-              <Button Content="Сохранить как новый профиль…"
-                      Margin="0,0,0,6"
-                      Style="{StaticResource PrimaryActionButtonStyle}"
-                      Padding="12,8"
-                      Command="{Binding SaveAsNewProfileCommand}" />
-              <Button Content="Сохранить для профиля"
-                      Margin="0,0,0,6"
+            <DockPanel Grid.Row="0" Margin="0,0,0,8" LastChildFill="False">
+              <Button DockPanel.Dock="Left"
+                      Content="← К списку файлов"
                       Style="{StaticResource SecondaryButtonStyle}"
-                      Padding="12,8"
-                      Command="{Binding SaveForProfileCommand}" />
-              <Button Content="Только для этого товара (файла)"
-                      Margin="0,0,0,6"
-                      Style="{StaticResource SecondaryButtonStyle}"
-                      Padding="12,8"
-                      Command="{Binding SaveForThisFileOnlyCommand}" />
-              <Button Content="Сброс"
-                      Style="{StaticResource SecondaryButtonStyle}"
-                      Padding="12,8"
-                      Command="{Binding ResetAdjustmentsCommand}" />
-            </StackPanel>
-          </DockPanel>
+                      Padding="10,6"
+                      Margin="0,0,12,0"
+                      Command="{Binding BackToBrowseCommand}" />
+              <TextBlock VerticalAlignment="Center"
+                         Foreground="{DynamicResource Theme.TextBody}"
+                         TextTrimming="CharacterEllipsis">
+                <Run Text="Файл: " />
+                <Run Text="{Binding EditorInputPath, Mode=OneWay}" FontWeight="SemiBold" />
+              </TextBlock>
+            </DockPanel>
+
+            <Grid Grid.Row="1">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="280" />
+              </Grid.ColumnDefinitions>
+
+              <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6"
+                           Foreground="{DynamicResource Theme.TextPrimary}"
+                           Text="Результат (тащите мышью — смещение X/Y в px выхода)" />
+                <Border BorderBrush="{DynamicResource Theme.DialogBorder}"
+                        BorderThickness="1"
+                        Background="#202020"
+                        CornerRadius="4"
+                        ClipToBounds="True"
+                        MaxWidth="600"
+                        MaxHeight="450">
+                  <Grid>
+                    <Image x:Name="ResultImage"
+                           Source="{Binding ResultPreview}"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           MouseLeftButtonDown="ResultImage_OnMouseLeftButtonDown"
+                           MouseMove="ResultImage_OnMouseMove"
+                           MouseLeftButtonUp="ResultImage_OnMouseLeftButtonUp"
+                           MouseLeave="ResultImage_OnMouseLeave" />
+                    <controls:BusySpinner HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Visibility="{Binding IsEditorLargePreviewBusy, Converter={StaticResource BoolToVis}}" />
+                  </Grid>
+                </Border>
+              </DockPanel>
+
+              <DockPanel Grid.Column="1">
+                <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6"
+                           Foreground="{DynamicResource Theme.TextPrimary}"
+                           Text="Референс" />
+                <Border DockPanel.Dock="Top"
+                        BorderBrush="{DynamicResource Theme.DialogBorder}"
+                        BorderThickness="1"
+                        Height="240"
+                        CornerRadius="4"
+                        Margin="0,0,0,12">
+                  <Grid>
+                    <Image Source="{Binding ReferencePreview}" Stretch="Uniform" />
+                    <controls:BusySpinner HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Visibility="{Binding IsEditorLargePreviewBusy, Converter={StaticResource BoolToVis}}" />
+                  </Grid>
+                </Border>
+
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                  <TextBlock Text="Номер кадра (референс / Zona)" Margin="0,0,0,4" Foreground="{DynamicResource Theme.TextBody}" />
+                  <ComboBox ItemsSource="{Binding ShotStemChoices}"
+                            SelectedItem="{Binding SelectedShotStem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            MinHeight="28" />
+                </StackPanel>
+
+                <StackPanel>
+                  <TextBlock Text="Смещение X (px)" Foreground="{DynamicResource Theme.TextBody}" />
+                  <TextBox Text="{Binding OffsetX, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+                  <TextBlock Text="Смещение Y (px)" Foreground="{DynamicResource Theme.TextBody}" />
+                  <TextBox Text="{Binding OffsetY, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+                  <TextBlock Text="Масштаб (%)" Foreground="{DynamicResource Theme.TextBody}" />
+                  <TextBox Text="{Binding ZoomPercent, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+                  <TextBlock Text="Поворот (°)" Foreground="{DynamicResource Theme.TextBody}" />
+                  <TextBox Text="{Binding RotationDeg, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8" />
+
+                  <TextBlock Text="Сетка выравнивания (только превью)" Foreground="{DynamicResource Theme.TextBody}" />
+                  <ComboBox ItemsSource="{Binding GridOverlayOptions}"
+                            DisplayMemberPath="Display"
+                            SelectedValuePath="Kind"
+                            SelectedValue="{Binding GridOverlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            MinHeight="28"
+                            Margin="0,2,0,12" />
+
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <Button Content="↶"
+                            Width="36"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Padding="8,8"
+                            ToolTip="Отменить (Ctrl+Z)"
+                            Command="{Binding UndoAdjustCommand}" />
+                    <Button Content="↷"
+                            Width="36"
+                            Margin="6,0,0,0"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Padding="8,8"
+                            ToolTip="Повтор (Ctrl+Y)"
+                            Command="{Binding RedoAdjustCommand}" />
+                    <Button Content="Авто-подгонка"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Padding="12,8"
+                            ToolTip="Макет 1400×1050: центр силуэта между линиями, safe zone; YOLOv8/U2Net/OpenCV"
+                            Command="{Binding RunAutoAlignCommand}" />
+                  </StackPanel>
+                  <Button Content="Применить изменения"
+                          Margin="0,0,0,6"
+                          Style="{StaticResource PrimaryActionButtonStyle}"
+                          Padding="12,8"
+                          ToolTip="Сохранить текущие правки только для этого файла"
+                          Command="{Binding PersistAdjustmentsForCurrentFileCommand}" />
+                  <Button Content="Сбросить"
+                          Style="{StaticResource SecondaryButtonStyle}"
+                          Padding="12,8"
+                          ToolTip="Удалить сохранённые правки для этого файла"
+                          Command="{Binding ResetAdjustmentsCommand}" />
+                </StackPanel>
+              </DockPanel>
+            </Grid>
+
+            <TextBlock Grid.Row="2"
+                       Margin="0,8,0,0"
+                       Text="{Binding StatusText}"
+                       Foreground="{DynamicResource Theme.Accent}"
+                       TextWrapping="Wrap" />
+          </Grid>
         </Grid>
-
-        <TextBlock Grid.Row="2"
-                   Margin="0,8,0,0"
-                   Text="{Binding StatusText}"
-                   Foreground="{DynamicResource Theme.Accent}"
-                   TextWrapping="Wrap" />
-      </Grid>
-    </Grid>
+      </DockPanel>
+    </ScrollViewer>
   </DockPanel>
-  </ScrollViewer>
 </Window>

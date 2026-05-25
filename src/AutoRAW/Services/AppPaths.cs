@@ -38,6 +38,10 @@ public static class AppPaths
     /// <summary>Каталог манифестов встроенных профилей: <c>profiles\&lt;slug&gt;\profile.json</c> рядом с exe.</summary>
     public static string ShippedProfilesCatalogRoot => Path.Combine(AppRoot, "profiles");
 
+    /// <summary>Стартовые ручные правки по номеру кадра для «Кроссовки» из комплекта (не перезаписывают <c>%AppData%\ manual_shot_adjust.json</c>).</summary>
+    public static string BuiltInSneakersManualShotDefaultsFile =>
+        Path.Combine(ShippedProfilesCatalogRoot, BuiltInSneakersSubfolder, "manual_shot_profile_defaults.json");
+
     /// <summary>Тот же слот «Кроссовки» (папки <c>reference\Sneakers</c> и <c>zona\Sneakers</c>), в т.ч. если профиль загружен из <c>profiles\Sneakers</c>.</summary>
     public static bool ReferencesBuiltInSneakersFolders(ProductProfile? p)
     {
@@ -74,6 +78,47 @@ public static class AppPaths
         }
     }
 
+    /// <summary>Папка с экшен-дроплетами Photoshop рядом с программой (<c>droplets\01_drop.exe</c> и т.д.).</summary>
+    public static string DropletsFolder => Path.Combine(AppRoot, "droplets");
+
+    /// <summary>Каталог ONNX-моделей детекции товара (<c>models\subject\yolov8n.onnx</c>).</summary>
+    public static string SubjectModelsFolder => Path.Combine(AppRoot, "models", "subject");
+
+    public static string SubjectYoloV8ModelFile =>
+        ResolveSubjectOnnxPath("yolov8n.onnx") ?? Path.Combine(SubjectModelsFolder, "yolov8n.onnx");
+
+    public static string SubjectYoloV8SegModelFile =>
+        ResolveSubjectOnnxPath("yolov8n-seg.onnx") ?? Path.Combine(SubjectModelsFolder, "yolov8n-seg.onnx");
+
+    public static string SubjectU2NetpModelFile =>
+        ResolveSubjectOnnxPath("u2netp.onnx") ?? Path.Combine(SubjectModelsFolder, "u2netp.onnx");
+
+    /// <summary>Ищет ONNX рядом с exe и вверх по дереву (dev: корень репозитория).</summary>
+    public static string? ResolveSubjectOnnxPath(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        var direct = Path.Combine(SubjectModelsFolder, fileName);
+        if (File.Exists(direct))
+            return Path.GetFullPath(direct);
+
+        var dir = AppRoot;
+        for (var i = 0; i < 10; i++)
+        {
+            var probe = Path.Combine(dir, "models", "subject", fileName);
+            if (File.Exists(probe))
+                return Path.GetFullPath(probe);
+
+            var parent = Directory.GetParent(dir)?.FullName;
+            if (string.IsNullOrEmpty(parent) || string.Equals(parent, dir, StringComparison.OrdinalIgnoreCase))
+                break;
+            dir = parent;
+        }
+
+        return null;
+    }
+
     public static string InstructionFile => Path.Combine(AppRoot, "Instruction.md");
 
     public static string ChangelogFile => Path.Combine(AppRoot, "CHANGELOG.md");
@@ -99,12 +144,20 @@ public static class AppPaths
     /// <summary>Ручные правки кадра (%AppData%\AutoRAW\manual_shot_adjust.json).</summary>
     public static string ManualShotAdjustStoreFile => Path.Combine(RoamingRoot, "manual_shot_adjust.json");
 
+    /// <summary>Выбранный эталон в очереди кадрирования по полному пути входа (%AppData%\AutoRAW\crop_frame_refs.json).</summary>
+    public static string CropFrameReferenceChoicesFile => Path.Combine(RoamingRoot, "crop_frame_refs.json");
+
     /// <summary>Файл пользовательских товаров (старый формат, до миграции).</summary>
     public static string CustomProductsFile => Path.Combine(RoamingRoot, "products.json");
 
     public static string ProfilePreferencesFile => Path.Combine(RoamingRoot, "profile_prefs.json");
 
     public static string ExportPreferencesFile => Path.Combine(RoamingRoot, "export_prefs.json");
+
+    /// <summary>Загрузчик RAW: LibRaw или ImageMagick (%AppData%\AutoRAW\raw_loader_prefs.json).</summary>
+    public static string RawLoaderPreferencesFile => Path.Combine(RoamingRoot, "raw_loader_prefs.json");
+
+    public static string AlignQualityPreferencesFile => Path.Combine(RoamingRoot, "align_quality_prefs.json");
 
     /// <summary>Видимость панелей из меню «Вид → Окна» (журнал, цветовой профиль, превью).</summary>
     public static string WindowPanelPreferencesFile => Path.Combine(RoamingRoot, "window_panels.json");

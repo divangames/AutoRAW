@@ -16,6 +16,7 @@ installer/dotnet-sdk-*.exe
 # Сборки и локальные бинарники (релизы — через GitHub Releases)
 dist/
 droples/
+droplets/*.exe
 
 # Кэш IDE
 *.lscache
@@ -26,6 +27,9 @@ test/One/
 
 # Adobe Photoshop — исходники макетов (в репозитории держим экспорт PNG/JPG)
 *.psd
+
+# ONNX-модели (скачать bat/download-yolov8n-onnx.ps1)
+models/**/*.onnx
 
 # Деплой презентации (SSH), локальные секреты
 presentation/deploy.env

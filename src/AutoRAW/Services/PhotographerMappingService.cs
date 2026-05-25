@@ -6,6 +6,17 @@ namespace AutoRAW.Services;
 /// <summary>Сопоставление входных файлов с референсами в зависимости от выбранного фотографа.</summary>
 public static class PhotographerMappingService
 {
+    /// <summary>Явный выбор файла эталона: задаёт строку очереди, стем выхода и zona по имени референса.</summary>
+    public static bool ApplyStemFromChosenReference(CropMappingRowViewModel row, string referenceFileName)
+    {
+        row.SelectedReferenceFile = referenceFileName;
+        var stem = Path.GetFileNameWithoutExtension(referenceFileName);
+        row.OutputFileStem = string.IsNullOrEmpty(stem) ? null : stem;
+        row.ZonaMarkerStem = row.OutputFileStem;
+        row.RotateCounterClockwise90 = false;
+        return true;
+    }
+
     /// <summary>Сопоставление позиции/номера кадра с референсом 01…08.</summary>
     public static void ApplyShotNumberRow(
         CropMappingRowViewModel row,

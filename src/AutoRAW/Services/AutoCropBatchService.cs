@@ -20,7 +20,8 @@ public sealed class AutoCropBatchService
         string? zonaFolder = null,
         ColorCorrectionSettings? colorCorrection = null,
         bool applyColorCorrection = false,
-        bool saveAsWebP = false)
+        bool saveAsWebP = false,
+        bool runThroughPhotoshopDroplets = false)
     {
         if (jobs.Count == 0)
         {
@@ -34,9 +35,16 @@ public sealed class AutoCropBatchService
         var completed = 0;
         var succeeded = 0;
         var errors = 0;
+        var manualSaved = 0;
+        var autoAligned = 0;
+        var needsReview = 0;
+        var lowQuality = 0;
         var cancelled = false;
 
         log($"Заданий: {total}");
+        if (runThroughPhotoshopDroplets)
+            log(PhotoshopDropletLauncher.DescribeInstallationForLog());
+
         onProgress?.Invoke(0, total, 0, 0);
 
         foreach (var job in jobs)
@@ -73,8 +81,31 @@ public sealed class AutoCropBatchService
                         log($"Референс (анализ): {refName}");
                     }
 
-                    ProcessWithManualFrameFromFull(job, outDir, outStem, metrics, runControl, analysisMaxEdge, colorCorrection, applyColorCorrection, saveAsWebP);
-                    log($"OK: {rel} → {outStem}  (референс: {refName})");
+                    var frame = ProcessWithManualFrameFromFull(
+                        job, outDir, outStem, metrics, runControl, analysisMaxEdge, zonaFolder,
+                        colorCorrection, applyColorCorrection, saveAsWebP,
+                        runThroughPhotoshopDroplets, log);
+                    switch (frame.Provenance)
+                    {
+                        case ManualShotFrameProvenance.PerFile:
+                        case ManualShotFrameProvenance.ProfileStem:
+                        case ManualShotFrameProvenance.ProfileFileName:
+                            manualSaved++;
+                            break;
+                        case ManualShotFrameProvenance.AutoAlign:
+                            autoAligned++;
+                            break;
+                    }
+
+                    if (frame.NeedsReview)
+                        needsReview++;
+                    if (frame.IsLowAlignQuality)
+                        lowQuality++;
+
+                    var qualityNote = frame.IsLowAlignQuality && !double.IsNaN(frame.AlignQualityScore)
+                        ? $", {frame.AlignQualitySummary}"
+                        : string.Empty;
+                    log($"OK{frame.BatchLogSuffix}: {rel} → {outStem}  ({frame.ProvenanceLabel}{qualityNote}, референс: {refName})");
                     succeeded++;
                 }
             }
@@ -98,7 +129,7 @@ public sealed class AutoCropBatchService
         if (cancelled)
             log("Кадрирование отменено.", LogLineKind.Cancel);
 
-        return new BatchRunResult(cancelled, total, succeeded, errors, runControl.ActiveElapsed);
+        return new BatchRunResult(cancelled, total, succeeded, errors, runControl.ActiveElapsed, manualSaved, autoAligned, needsReview, lowQuality);
     }
 
     private static string TryGetRelativeDisplayPath(string inputRootFull, string inputPath)
@@ -115,16 +146,19 @@ public sealed class AutoCropBatchService
     }
 
     /// <summary>Полный кадр (после ориентации по стему) + ручные правки из json → файл размера референса.</summary>
-    private static void ProcessWithManualFrameFromFull(
+    private static ResolvedManualShotFrame ProcessWithManualFrameFromFull(
         BatchJobItem job,
         string outputFolder,
         string outStem,
         AutoCropComputation.ReferenceMetrics reference,
         BatchRunController runControl,
         int analysisMaxEdge,
+        string? zonaFolder,
         ColorCorrectionSettings? colorCorrection,
         bool applyColorCorrection,
-        bool saveAsWebP)
+        bool saveAsWebP,
+        bool runThroughPhotoshopDroplets,
+        BatchLogHandler log)
     {
         runControl.WaitIfPausedOrCancelled();
         using var full = RasterImageLoader.Load(job.InputPath);
@@ -135,25 +169,31 @@ public sealed class AutoCropBatchService
 
         var refW = (int)reference.RefW;
         var refH = (int)reference.RefH;
-        var adj = ManualShotAdjustStore.Resolve(job.ProfileDisplayName, job.InputPath, outStem);
-        var working = ManualShotAdjustApplier.ComposeFromFullToReference(full, adj, refW, refH);
+        var frame = ManualShotFrameResolver.ResolveForExport(
+            job.InputPath,
+            job.ReferencePath,
+            job.ProfileDisplayName,
+            outStem,
+            zonaFolder,
+            analysisMaxEdge,
+            job.RotateCounterClockwise90);
+        using var working = ManualShotAdjustApplier.ComposeFromFullToReference(full, frame.Adjust, refW, refH);
+        frame = FrameAlignQualityService.EnrichWithQuality(frame, working, reference, analysisMaxEdge);
 
-        try
-        {
-            runControl.WaitIfPausedOrCancelled();
-            if (colorCorrection is not null)
-                ColorCorrectionService.ApplyIfEnabled(working, colorCorrection, applyColorCorrection);
+        runControl.WaitIfPausedOrCancelled();
+        if (colorCorrection is not null)
+            ColorCorrectionService.ApplyIfEnabled(working, colorCorrection, applyColorCorrection);
 
-            Directory.CreateDirectory(outputFolder);
-            var outName = outStem + (saveAsWebP ? ".webp" : ".jpg");
-            var outPath = Path.Combine(outputFolder, outName);
-            runControl.WaitIfPausedOrCancelled();
-            WriteCroppedFile(working, outPath, saveAsWebP);
-        }
-        finally
-        {
-            working.Dispose();
-        }
+        Directory.CreateDirectory(outputFolder);
+        var outName = outStem + (saveAsWebP ? ".webp" : ".jpg");
+        var outPath = Path.Combine(outputFolder, outName);
+        runControl.WaitIfPausedOrCancelled();
+        WriteCroppedFile(working, outPath, saveAsWebP);
+
+        if (runThroughPhotoshopDroplets)
+            PhotoshopDropletLauncher.TryLaunch(outStem, outPath, job.InputPath, (m, kind) => log(m, kind));
+
+        return frame;
     }
 
     private static void WriteCroppedFile(MagickImage cropped, string outPath, bool saveAsWebP)

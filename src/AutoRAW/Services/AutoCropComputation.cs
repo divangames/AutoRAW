@@ -1,4 +1,5 @@
 using AutoRAW.Models;
+using AutoRAW.Services.SubjectDetection;
 using ImageMagick;
 
 namespace AutoRAW.Services;
@@ -10,11 +11,8 @@ public static class AutoCropComputation
 
     public readonly record struct TargetMetrics(Box2d SubjectTarget, double ImgW, double ImgH);
 
-    public static ReferenceMetrics AnalyzeReference(string referencePath, int analysisMaxEdge)
-    {
-        using var refFull = RasterImageLoader.Load(referencePath);
-        return AnalyzeReference(refFull, analysisMaxEdge);
-    }
+    public static ReferenceMetrics AnalyzeReference(string referencePath, int analysisMaxEdge) =>
+        ReferenceCompositionCatalog.GetOrBuild(referencePath, analysisMaxEdge).ToReferenceMetrics();
 
     /// <summary>EXIF/XMP ориентация и сброс виртуального холста — важно для .nef/.cr2 после AutoOrient.</summary>
     public static void AutoOrientAndNormalize(MagickImage image)
@@ -34,30 +32,17 @@ public static class AutoCropComputation
         Box2d subjectRef;
         using (var refMat = MagickMatConverter.ToMatBgr(refAnalysis))
         {
-            subjectRef = SubjectBoundsEstimator.Estimate(refMat);
+            var det = SubjectDetectionService.DetectOnMat(refMat);
+            subjectRef = det.IsValid ? det.Subject : SubjectBoundsEstimator.Estimate(refMat);
+            subjectRef = SubjectBoundsEstimator.RefineHorizontalWidthByEdgeProjection(refMat, subjectRef);
         }
 
         subjectRef = subjectRef.Scale(refScale, refScale);
         return new ReferenceMetrics(subjectRef, refW, refH);
     }
 
-    public static TargetMetrics AnalyzeTarget(MagickImage fullOriented, int analysisMaxEdge)
-    {
-        var imgW = (double)fullOriented.Width;
-        var imgH = (double)fullOriented.Height;
-
-        using var analysis = CloneResizedLongEdge(fullOriented, analysisMaxEdge);
-        var scale = imgW / analysis.Width;
-
-        Box2d subjectTarget;
-        using (var mat = MagickMatConverter.ToMatBgr(analysis))
-        {
-            subjectTarget = SubjectBoundsEstimator.Estimate(mat);
-        }
-
-        subjectTarget = subjectTarget.Scale(scale, scale);
-        return new TargetMetrics(subjectTarget, imgW, imgH);
-    }
+    public static TargetMetrics AnalyzeTarget(MagickImage fullOriented, int analysisMaxEdge) =>
+        SubjectDetectionService.AnalyzeTarget(fullOriented, analysisMaxEdge);
 
     /// <summary>Цель для сценария <c>operation</c> — <see cref="SubjectBoundsEstimator.EstimateForOperation"/>, без логики line-guide/стола.</summary>
     public static TargetMetrics AnalyzeTargetForOperation(MagickImage fullOriented, int analysisMaxEdge)
@@ -100,6 +85,24 @@ public static class AutoCropComputation
         var nh = Math.Max(1u, (uint)Math.Round(clone.Height * s));
         clone.Resize(nw, nh);
         return clone;
+    }
+
+    /// <summary>Уменьшает изображение in-place так, чтобы max(ширина, высота) ≤ maxEdge (превью редактора после декода).</summary>
+    public static void ResizeLongEdgeFitInPlace(MagickImage image, int maxEdge)
+    {
+        if (maxEdge < 64)
+            return;
+
+        var m = Math.Max(image.Width, image.Height);
+        if (m <= maxEdge)
+            return;
+
+        var s = maxEdge / (double)m;
+        var nw = Math.Max(1u, (uint)Math.Round(image.Width * s));
+        var nh = Math.Max(1u, (uint)Math.Round(image.Height * s));
+        image.FilterType = FilterType.Triangle;
+        image.Resize(nw, nh);
+        image.ResetPage();
     }
 
     /// <summary>Совмещает положение товара в кадре с референсом (после кропа и масштаба).</summary>
