@@ -135,6 +135,17 @@ public partial class MainWindow : Window
     private void LogHeader_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
         _logHeaderDragOrigin = null;
 
+    private void InputDropZone_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        if (vm.BrowseInputFolderCommand.CanExecute(null))
+            vm.BrowseInputFolderCommand.Execute(null);
+
+        e.Handled = true;
+    }
+
     private void MenuProfileRoot_OnLoaded(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)

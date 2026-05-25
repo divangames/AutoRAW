@@ -44,17 +44,17 @@ public partial class VisualShotEditorWindow : Window
 
     private VisualShotEditorViewModel? Vm => DataContext as VisualShotEditorViewModel;
 
-    private void OnSyncFolderSelectionAfterReload(IReadOnlyList<FolderListItemViewModel> folders)
+    private void OnSyncFolderSelectionAfterReload(IReadOnlyList<FolderTreeNodeViewModel> folders)
     {
         _syncingFolderSelection = true;
         try
         {
-            FoldersList.SelectedItems.Clear();
-            foreach (var f in folders)
-            {
-                if (FoldersList.Items.Contains(f))
-                    FoldersList.SelectedItems.Add(f);
-            }
+            var pick = folders.FirstOrDefault();
+            if (pick is null)
+                return;
+
+            ExpandTreeToNode(pick);
+            SelectTreeNode(pick);
         }
         finally
         {
@@ -62,13 +62,61 @@ public partial class VisualShotEditorWindow : Window
         }
     }
 
-    private void FoldersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void SelectTreeNode(FolderTreeNodeViewModel node)
     {
-        if (_syncingFolderSelection || Vm is null || sender is not WpfListBox lb)
+        if (FindTreeViewItem(FoldersTree, node) is { } tvi)
+            tvi.IsSelected = true;
+    }
+
+    private static TreeViewItem? FindTreeViewItem(ItemsControl parent, FolderTreeNodeViewModel node)
+    {
+        if (parent.ItemContainerGenerator.ContainerFromItem(node) is TreeViewItem direct)
+            return direct;
+
+        foreach (var item in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(item) is not TreeViewItem tvi)
+                continue;
+
+            var hit = FindTreeViewItem(tvi, node);
+            if (hit is not null)
+                return hit;
+        }
+
+        return null;
+    }
+
+    private void ExpandTreeToNode(FolderTreeNodeViewModel node)
+    {
+        var chain = new List<FolderTreeNodeViewModel>();
+        for (var n = node; n is not null; n = n.Parent)
+            chain.Add(n);
+        chain.Reverse();
+
+        ItemsControl? parent = FoldersTree;
+        foreach (var n in chain)
+        {
+            if (parent?.ItemContainerGenerator.ContainerFromItem(n) is not TreeViewItem tvi)
+                break;
+
+            tvi.IsExpanded = true;
+            tvi.UpdateLayout();
+            parent = tvi;
+        }
+    }
+
+    private void FoldersTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (_syncingFolderSelection || Vm is null)
             return;
 
-        var sel = lb.SelectedItems.Cast<FolderListItemViewModel>().ToList();
-        Vm.NotifyFoldersSelectionChanged(sel);
+        if (FoldersTree.SelectedItem is not FolderTreeNodeViewModel node)
+        {
+            Vm.NotifyFoldersSelectionChanged([]);
+            return;
+        }
+
+        Vm.NotifyFoldersSelectionChanged([node]);
     }
 
     private void Thumb_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)

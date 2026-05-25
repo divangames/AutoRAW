@@ -10,6 +10,12 @@ public static class CropPreviewBitmapFactory
 {
     private const int MinEdge = 64;
 
+    /// <summary>Длинная сторона растра миниатюры в списке редактора (ячейка ~108 px).</summary>
+    public const int EditorBrowseThumbDisplayEdge = 96;
+
+    /// <summary>Декод исходника/референса только для миниатюр списка — не тянуть «Анализ» с главного окна.</summary>
+    public const int EditorBrowseThumbLoadEdge = 128;
+
     public static BitmapSource? LoadThumbnail(string path, int maxEdge)
     {
         try
@@ -17,6 +23,59 @@ public static class CropPreviewBitmapFactory
             using var img = RasterImageLoader.Load(path);
             FitLongEdge(img, maxEdge);
             return ToBitmapSource(img);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Лёгкое превью для сетки файлов редактора: малый декод, без цветокоррекции, сетка правил макета всегда.
+    /// </summary>
+    public static BitmapSource? LoadEditorBrowseThumbnail(
+        string inputPath,
+        string referencePath,
+        string? outputFileStem,
+        string? profileDisplayName,
+        ManualShotAdjust? manualAdjustOverride)
+    {
+        try
+        {
+            var reference = AutoCropComputation.AnalyzeReference(referencePath, EditorBrowseThumbLoadEdge);
+            var refW = (int)reference.RefW;
+            var refH = (int)reference.RefH;
+
+            using var full = TryLoadPreparedFullForManualFrame(
+                inputPath,
+                outputFileStem,
+                EditorBrowseThumbLoadEdge,
+                rotateCounterClockwise90: false,
+                clampLoadedImageLongEdge: EditorBrowseThumbLoadEdge);
+            if (full is null)
+                return null;
+
+            var adj = (manualAdjustOverride ?? ManualShotAdjustStore.Resolve(profileDisplayName, inputPath, outputFileStem))
+                .Clone();
+            adj.GridOverlay = ZonaGridOverlayKind.LayoutRules;
+
+            var refLong = Math.Max(refW, refH);
+            var composeLong = Math.Min(EditorBrowseThumbDisplayEdge * 2, refLong);
+            var composeScale = refLong > 0 ? composeLong / (double)refLong : 1.0;
+
+            using var working = BuildManualFramedOutput(
+                full,
+                inputPath,
+                outputFileStem,
+                zonaFolder: null,
+                profileDisplayName,
+                adj,
+                refW,
+                refH,
+                composeScale);
+
+            FitLongEdge(working, EditorBrowseThumbDisplayEdge);
+            return ToBitmapSource(working, MagickFormat.Jpeg);
         }
         catch
         {
@@ -128,7 +187,9 @@ public static class CropPreviewBitmapFactory
                 ImageTransformHelper.RotateCounterClockwise90(full);
             ShotCropPolicy.ApplyPreCropOrientation(full, outputFileStem, analysisMaxEdge);
 
-            var previewComposeLongEdge = Math.Clamp(displayMaxEdge * 2, 480, 680);
+            var previewComposeLongEdge = displayMaxEdge <= EditorBrowseThumbDisplayEdge + 32
+                ? Math.Clamp(displayMaxEdge * 2, MinEdge, EditorBrowseThumbLoadEdge * 2)
+                : Math.Clamp(displayMaxEdge * 2, 480, 680);
             var refLong = Math.Max(refW, refH);
             var composeScale = refLong > 0 ? Math.Min(1.0, previewComposeLongEdge / (double)refLong) : 1.0;
 
@@ -244,7 +305,7 @@ public static class CropPreviewBitmapFactory
         }
 
         var working = ManualShotAdjustApplier.ComposeFromFullToReference(full, adjUse, rw, rh);
-        TryCompositeGrid(working, outputFileStem, adj.GridOverlay);
+        TryCompositeGrid(working, outputFileStem, adjUse.GridOverlay);
         return working;
     }
 
@@ -291,6 +352,8 @@ public static class CropPreviewBitmapFactory
     {
         using var ms = new MemoryStream();
         img.Format = format;
+        if (format == MagickFormat.Jpeg)
+            img.Quality = 82;
         img.Write(ms);
         ms.Position = 0;
 

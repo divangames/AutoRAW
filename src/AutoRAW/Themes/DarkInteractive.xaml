@@ -182,13 +182,37 @@
 
   <Style TargetType="ComboBoxItem">
     <Setter Property="Foreground" Value="{DynamicResource Theme.TextPrimary}" />
-    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Background" Value="{DynamicResource Theme.ComboBoxBackground}" />
+    <Setter Property="Padding" Value="8,6" />
     <Style.Triggers>
       <Trigger Property="IsMouseOver" Value="True">
         <Setter Property="Background" Value="{DynamicResource Theme.ListItemHover}" />
       </Trigger>
       <Trigger Property="IsHighlighted" Value="True">
         <Setter Property="Background" Value="{DynamicResource Theme.ListItemSelected}" />
+      </Trigger>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.ListItemSelected}" />
+        <Setter Property="Foreground" Value="{DynamicResource Theme.TextPrimary}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style TargetType="TreeView">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Theme.TextPrimary}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style TargetType="TreeViewItem">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.TextPrimary}" />
+    <Setter Property="Padding" Value="2,2" />
+    <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.ListItemSelected}" />
+      </Trigger>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.ListItemHover}" />
       </Trigger>
     </Style.Triggers>
   </Style>

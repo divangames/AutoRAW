@@ -4,7 +4,7 @@
     Publish AutoRAW and compile a single Inno Setup installer (Russian UI).
 .DESCRIPTION
     1. dotnet publish -> dist\publish\ (win-x64, framework-dependent)
-    2. Copy setting, reference, zona from repo root
+    2. Copy setting, reference, zona, profiles, droplets (and droples if present) from repo root
     3. Read version from CHANGELOG.md (bat\Resolve-VersionFromChangelog.ps1) -> dist\changelog_version_assembly.txt + changelog_version_info.txt
     4. Run ISCC.exe with /DMyAppVersion /DMyAppVerFull on installer\AutoRAW.iss
     Requires Inno Setup 6 (ISCC) on the developer machine.
@@ -112,8 +112,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "[3/5] Copying setting, reference, zona, profiles (without *.psd)..." -ForegroundColor Cyan
-foreach ($folder in @("setting", "reference", "zona", "profiles")) {
+Write-Host "[3/5] Copying setting, reference, zona, profiles, droplets (without *.psd)..." -ForegroundColor Cyan
+foreach ($folder in @("setting", "reference", "zona", "profiles", "droplets", "droples")) {
     if (Test-Path (Join-Path $RepoRoot $folder)) {
         Write-Host "  -> $folder" -ForegroundColor DarkGray
         Copy-RepoAssetFolder -FolderName $folder

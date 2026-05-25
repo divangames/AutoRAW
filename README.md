@@ -79,7 +79,7 @@
 
 ## Установщик
 
-Скрипт **`build-installer.ps1`** публикует приложение и собирает **Inno Setup** (`installer\AutoRAW.iss`). Версия читается из **верхней** строки **`CHANGELOG.md`** (`## [a.b.c.d.e]`, допускается 1…5 чисел — недостающие справа нули). Скрипт **`bat\Resolve-VersionFromChangelog.ps1`** пишет: **полная строка** в `MyAppVersion` (тексты мастера и имя `AutoRAW-Setup-…-ru.exe`) и **первые четыре компонента** в `MyAppVerFull` (поле VersionInfo). Результат: `dist\AutoRAW-Setup-0.7.8.5.0-ru.exe` (папка `dist/` в git не входит).
+Скрипт **`build-installer.ps1`** публикует приложение и собирает **Inno Setup** (`installer\AutoRAW.iss`). В **`dist\publish`** копируются `setting`, `reference`, `zona`, `profiles` и **`droplets`** (все файлы из корня репозитория, включая `.exe`, если они лежат в `droplets\` на машине сборки). Версия читается из **верхней** строки **`CHANGELOG.md`** (`## [a.b.c.d.e]`, допускается 1…5 чисел — недостающие справа нули). Скрипт **`bat\Resolve-VersionFromChangelog.ps1`** пишет: **полная строка** в `MyAppVersion` (тексты мастера и имя `AutoRAW-Setup-…-ru.exe`) и **первые четыре компонента** в `MyAppVerFull` (поле VersionInfo). Результат: `dist\AutoRAW-Setup-0.7.8.5.0-ru.exe` (папка `dist/` в git не входит).
 
 ---
 

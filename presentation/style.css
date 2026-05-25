@@ -432,7 +432,7 @@ a{color:inherit;text-decoration:none}
   object-fit:contain;object-position:bottom right;
   display:block;
   opacity:1;
-  transform:scale(2);
+  transform:scale(1);
   transform-origin:bottom right;
   filter:drop-shadow(-10px 0 20px rgba(8,8,15,.6));
 }
@@ -536,7 +536,7 @@ a{color:inherit;text-decoration:none}
   object-fit:contain;object-position:bottom right;
   display:block;
   opacity:1;
-  transform:scale(2);
+  transform:scale(1);
   transform-origin:bottom right;
   filter:drop-shadow(-10px 0 24px rgba(8,8,15,.7));
 }
@@ -696,7 +696,7 @@ a{color:inherit;text-decoration:none}
   object-fit:contain;object-position:bottom right;
   display:block;
   opacity:1;
-  transform:scale(2);
+  transform:scale(1);
   transform-origin:bottom right;
   filter:drop-shadow(-10px 0 24px rgba(8,8,15,.7));
 }

@@ -287,10 +287,54 @@ public partial class MainViewModel : ObservableObject
         ApplyDefaultReferenceToAllCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Подпись пути входа под зоной дропа.</summary>
+    public string InputFolderDisplay =>
+        string.IsNullOrWhiteSpace(InputFolder) ? "Путь: не выбран" : $"Путь: {InputFolder.Trim()}";
+
+    /// <summary>Куда пакет сохранит файлы (авто: webp/jpg во входе или явный выход).</summary>
+    public string EffectiveOutputPathPreview => BuildEffectiveOutputPathPreview();
+
+    public bool HasCustomOutputFolder => !string.IsNullOrWhiteSpace(OutputFolder);
+
+    private string BuildEffectiveOutputPathPreview()
+    {
+        var input = InputFolder?.Trim();
+        if (string.IsNullOrEmpty(input))
+            return "Укажите папку «Товар (вход)» — здесь появится путь сохранения.";
+
+        if (!Directory.Exists(input))
+            return $"Вход не найден. По умолчанию: {input}\\{(SaveAsWebP ? "webp" : "jpg")}\\<подпапка>\\";
+
+        try
+        {
+            var formatDir = SaveAsWebP ? "webp" : "jpg";
+            var explicitOut = OutputFolder?.Trim();
+            if (string.IsNullOrEmpty(explicitOut))
+                return $"{Path.GetFullPath(input)}\\{formatDir}\\<подпапка>\\";
+
+            if (!Directory.Exists(explicitOut))
+                return $"{explicitOut}\\<подпапка>\\ (папка будет создана при записи)";
+
+            return $"{Path.GetFullPath(explicitOut)}\\<подпапка>\\";
+        }
+        catch
+        {
+            return "Не удалось сформировать путь выхода.";
+        }
+    }
+
+    private void NotifyFolderUiHints()
+    {
+        OnPropertyChanged(nameof(InputFolderDisplay));
+        OnPropertyChanged(nameof(EffectiveOutputPathPreview));
+        OnPropertyChanged(nameof(HasCustomOutputFolder));
+    }
+
     partial void OnInputFolderChanged(string value)
     {
         RebuildMappingRows();
         OpenVisualShotEditorCommand.NotifyCanExecuteChanged();
+        NotifyFolderUiHints();
     }
 
     partial void OnAnalysisMaxEdgeChanged(double value)
@@ -309,9 +353,20 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedMappingRowChanged(CropMappingRowViewModel? value) => SchedulePreviewRefresh();
 
-    partial void OnOutputFolderChanged(string value) => NotifyBatchCommandsChanged();
+    partial void OnOutputFolderChanged(string value)
+    {
+        NotifyBatchCommandsChanged();
+        NotifyFolderUiHints();
+    }
 
-    partial void OnSaveAsWebPChanged(bool value) => ExportPreferenceStore.SetSaveAsWebP(value);
+    partial void OnSaveAsWebPChanged(bool value)
+    {
+        ExportPreferenceStore.SetSaveAsWebP(value);
+        NotifyFolderUiHints();
+    }
+
+    [RelayCommand]
+    private void ClearOutputFolder() => OutputFolder = string.Empty;
 
     partial void OnRunThroughPhotoshopDropletsChanged(bool value) =>
         ExportPreferenceStore.SetRunThroughPhotoshopDroplets(value);

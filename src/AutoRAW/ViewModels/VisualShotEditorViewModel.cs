@@ -19,7 +19,7 @@ namespace AutoRAW.ViewModels;
 public enum EditorBrowseFilterKind
 {
     All,
-    FilterByFileName
+    FilterByShotOrName
 }
 
 /// <summary>Окно: подпапки «Товар» → превью файлов → ручная подгонка кадра.</summary>
@@ -34,8 +34,8 @@ public partial class VisualShotEditorViewModel : ObservableObject
     /// <summary>Декод исходника только для большого интерактивного превью (пакет и экспорт используют «Анализ» с главного окна).</summary>
     private const int EditorInteractiveSourceMaxEdge = 600;
 
-    /// <summary>Декод для миниатюр списка файлов в браузере редактора (маленький вывод ~120 px).</summary>
-    private const int EditorBrowserThumbSourceMaxEdge = 480;
+    /// <summary>Параллельная сборка миниатюр списка (1 — щадящий режим для слабых ПК).</summary>
+    private const int EditorBrowseThumbParallelism = 1;
 
     /// <summary>Кнопка автоподгонки и фон: не распаковываем 4K+ только ради OpenCV.</summary>
     private const int EditorAutoAlignLoadEdgeCap = 896;
@@ -88,6 +88,8 @@ public partial class VisualShotEditorViewModel : ObservableObject
 
     private readonly Dictionary<string, (string Sig, BitmapSource Bmp)> _thumbBitmapCache =
         new(StringComparer.OrdinalIgnoreCase);
+
+    private CancellationTokenSource? _thumbLoadCts;
 
     private DispatcherTimer? _statusFlashClearTimer;
 
@@ -170,7 +172,16 @@ public partial class VisualShotEditorViewModel : ObservableObject
 
     [ObservableProperty] private bool _isBrowseMode = true;
 
-    [ObservableProperty] private ObservableCollection<FolderListItemViewModel> _folders = new();
+    [ObservableProperty] private ObservableCollection<FolderTreeNodeViewModel> _folderTreeRoots = new();
+
+    /// <summary>Пункты «Показать:» (без ComboBoxItem+Tag — стабильная привязка).</summary>
+    public IReadOnlyList<EditorBrowseFilterOption> BrowseFilterOptions { get; } =
+    [
+        new(EditorBrowseFilterKind.All, "Все файлы"),
+        new(EditorBrowseFilterKind.FilterByShotOrName, "По номеру / имени")
+    ];
+
+    private bool _filesScopeIsEntireGoods;
 
     /// <summary>Все файлы / фильтр по подстроке имени файла.</summary>
     [ObservableProperty] private EditorBrowseFilterKind _browseFilterKind = EditorBrowseFilterKind.All;
@@ -188,7 +199,7 @@ public partial class VisualShotEditorViewModel : ObservableObject
     private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Синхронизировать выделение ListBox после пересборки списка папок.</summary>
-    public event Action<IReadOnlyList<FolderListItemViewModel>>? SyncFolderSelectionAfterReload;
+    public event Action<IReadOnlyList<FolderTreeNodeViewModel>>? SyncFolderSelectionAfterReload;
 
     [ObservableProperty] private string? _editorInputPath;
 
@@ -306,7 +317,13 @@ public partial class VisualShotEditorViewModel : ObservableObject
         }
     }
 
-    partial void OnBrowseFilterKindChanged(EditorBrowseFilterKind value) => RefreshFilesView();
+    partial void OnBrowseFilterKindChanged(EditorBrowseFilterKind value)
+    {
+        RefreshFilesView();
+        var sel = ResolveFoldersFromSelectionPaths();
+        if (sel.Count > 0)
+            _ = ReloadFilesForSelectedFoldersAsync(sel);
+    }
 
     partial void OnBrowseFilterTextChanged(string value) => RefreshFilesView();
 
@@ -370,18 +387,32 @@ public partial class VisualShotEditorViewModel : ObservableObject
         FilesView.GroupDescriptions.Clear();
         if (BrowseGroupByFileName)
             FilesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(FileThumbItemViewModel.FileNameOnly)));
+        else if (ShouldGroupFilesByFolder())
+            FilesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(FileThumbItemViewModel.FolderGroupHeader)));
         FilesView.Refresh();
     }
+
+    private bool ShouldGroupFilesByFolder() =>
+        _filesScopeIsEntireGoods || _selectedFolderPaths.Count > 1;
 
     private bool FilterFilesPredicate(object obj)
     {
         if (obj is not FileThumbItemViewModel item)
             return false;
-        if (BrowseFilterKind != EditorBrowseFilterKind.FilterByFileName)
+        if (BrowseFilterKind != EditorBrowseFilterKind.FilterByShotOrName)
             return true;
+
         var q = BrowseFilterText.Trim();
-        return string.IsNullOrEmpty(q)
-               || Path.GetFileName(item.FilePath).Contains(q, StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(q))
+            return true;
+
+        if (int.TryParse(q, out var wantShot)
+            && InputShotNumberParser.TryParse(item.FilePath, out var fileShot))
+            return fileShot == wantShot;
+
+        var fileName = Path.GetFileName(item.FilePath);
+        return fileName.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || Path.GetFileNameWithoutExtension(fileName).Contains(q, StringComparison.OrdinalIgnoreCase);
     }
 
     private void FlashStatus(string message, int clearAfterMs = 4500)
@@ -446,9 +477,57 @@ public partial class VisualShotEditorViewModel : ObservableObject
         ClearProfileBasenameRuleCommand.NotifyCanExecuteChanged();
     }
 
+    private static FolderTreeNodeViewModel? FindTreeNodeByPath(FolderTreeNodeViewModel? node, string fullPath)
+    {
+        if (node is null)
+            return null;
+        if (node.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase))
+            return node;
+        foreach (var child in node.Children)
+        {
+            var hit = FindTreeNodeByPath(child, fullPath);
+            if (hit is not null)
+                return hit;
+        }
+
+        return null;
+    }
+
+    private static int CountTreeNodes(FolderTreeNodeViewModel node)
+    {
+        var n = 1;
+        foreach (var c in node.Children)
+            n += CountTreeNodes(c);
+        return n;
+    }
+
+    private static int CountIgnoredInTree(FolderTreeNodeViewModel node)
+    {
+        var n = node.IsIgnored ? 1 : 0;
+        foreach (var c in node.Children)
+            n += CountIgnoredInTree(c);
+        return n;
+    }
+
+    private void PopulateFolderTreeChildren(
+        FolderTreeNodeViewModel parent,
+        string directory,
+        string goodsRootFull,
+        HashSet<string> ignored)
+    {
+        foreach (var sub in Directory.GetDirectories(directory).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+        {
+            var ig = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(goodsRootFull, sub, ignored);
+            var name = Path.GetFileName(sub) ?? sub;
+            var child = new FolderTreeNodeViewModel(name, sub, isGoodsRoot: false, ig, parent);
+            parent.Children.Add(child);
+            PopulateFolderTreeChildren(child, sub, goodsRootFull, ignored);
+        }
+    }
+
     public void ReloadFolderList()
     {
-        Folders.Clear();
+        FolderTreeRoots.Clear();
         var root = _main.InputFolder?.Trim() ?? string.Empty;
         if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
         {
@@ -458,37 +537,34 @@ public partial class VisualShotEditorViewModel : ObservableObject
 
         var rootFull = Path.GetFullPath(root);
         var ignored = EditorIgnoredFoldersStore.GetIgnoredFolders(rootFull);
-        var subs = Directory.GetDirectories(rootFull).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
-        if (subs.Count > 0)
-        {
-            foreach (var d in subs)
-            {
-                var ig = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(rootFull, d, ignored);
-                Folders.Add(new FolderListItemViewModel(Path.GetFileName(d) ?? d, d, ig));
-            }
-        }
-        else
-        {
-            var ig = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(rootFull, rootFull, ignored);
-            Folders.Add(new FolderListItemViewModel("(эта папка)", rootFull, ig));
-        }
+        var rootLabel = Path.GetFileName(rootFull.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrEmpty(rootLabel))
+            rootLabel = rootFull;
 
-        var toSelect = Folders.Where(f => _selectedFolderPaths.Contains(f.FullPath)).ToList();
+        var rootIg = EditorIgnoredFoldersStore.IsUnderIgnoredFolder(rootFull, rootFull, ignored);
+        var rootNode = new FolderTreeNodeViewModel(rootLabel, rootFull, isGoodsRoot: true, rootIg);
+        PopulateFolderTreeChildren(rootNode, rootFull, rootFull, ignored);
+        FolderTreeRoots.Add(rootNode);
+
+        var toSelect = _selectedFolderPaths
+            .Select(p => FindTreeNodeByPath(rootNode, p))
+            .Where(n => n is not null)
+            .Cast<FolderTreeNodeViewModel>()
+            .ToList();
         if (toSelect.Count == 0)
-        {
-            var first = Folders.FirstOrDefault(f => !f.IsIgnored) ?? Folders.FirstOrDefault();
-            toSelect = first is not null ? [first] : [];
-        }
+            toSelect = [rootNode];
 
         ApplyFolderSelectionFromReload(toSelect);
 
-        var ignoredCount = Folders.Count(f => f.IsIgnored);
-        StatusText = subs.Count > 0
-            ? $"Подпапок: {subs.Count}" + (ignoredCount > 0 ? $", пропущено: {ignoredCount}." : ". Выберите папку.")
-            : "В папке «Товар» нет подпапок — показаны файлы из корня.";
+        var nodeCount = CountTreeNodes(rootNode) - 1;
+        var ignoredCount = CountIgnoredInTree(rootNode);
+        StatusText = nodeCount > 0
+            ? $"Дерево: корень + {nodeCount} подпапок"
+              + (ignoredCount > 0 ? $", пропущено: {ignoredCount}." : ". Корень — все файлы.")
+            : "Только корень «Товар» — все файлы в этой папке.";
     }
 
-    public void NotifyFoldersSelectionChanged(IReadOnlyList<FolderListItemViewModel> folders)
+    public void NotifyFoldersSelectionChanged(IReadOnlyList<FolderTreeNodeViewModel> folders)
     {
         _selectedFolderPaths.Clear();
         foreach (var f in folders)
@@ -496,7 +572,7 @@ public partial class VisualShotEditorViewModel : ObservableObject
         _ = ReloadFilesForSelectedFoldersAsync(folders);
     }
 
-    private void ApplyFolderSelectionFromReload(IReadOnlyList<FolderListItemViewModel> folders)
+    private void ApplyFolderSelectionFromReload(IReadOnlyList<FolderTreeNodeViewModel> folders)
     {
         _selectedFolderPaths.Clear();
         foreach (var f in folders)
@@ -506,8 +582,17 @@ public partial class VisualShotEditorViewModel : ObservableObject
         _ = ReloadFilesForSelectedFoldersAsync(folders);
     }
 
-    private List<FolderListItemViewModel> ResolveFoldersFromSelectionPaths() =>
-        Folders.Where(f => _selectedFolderPaths.Contains(f.FullPath)).ToList();
+    private List<FolderTreeNodeViewModel> ResolveFoldersFromSelectionPaths()
+    {
+        var root = FolderTreeRoots.FirstOrDefault();
+        if (root is null)
+            return [];
+        return _selectedFolderPaths
+            .Select(p => FindTreeNodeByPath(root, p))
+            .Where(n => n is not null)
+            .Cast<FolderTreeNodeViewModel>()
+            .ToList();
+    }
 
     [RelayCommand]
     private void IgnoreSelectedFolder()
@@ -596,11 +681,12 @@ public partial class VisualShotEditorViewModel : ObservableObject
         }
     }
 
-    private async Task ReloadFilesForSelectedFoldersAsync(IReadOnlyList<FolderListItemViewModel> folders)
+    private async Task ReloadFilesForSelectedFoldersAsync(IReadOnlyList<FolderTreeNodeViewModel> folders)
     {
         var prefetchGen = Interlocked.Increment(ref _folderPrefetchGeneration);
         _filesBacking.Clear();
         InvalidateAllThumbCache();
+        _filesScopeIsEntireGoods = false;
         RefreshFilesView();
 
         if (folders.Count == 0)
@@ -611,25 +697,46 @@ public partial class VisualShotEditorViewModel : ObservableObject
             ? Path.GetFullPath(goodsRootRaw)
             : string.Empty;
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var folder in folders.Where(f => !f.IsIgnored))
-        {
-            IEnumerable<string> folderImages = string.IsNullOrEmpty(goodsRootFull)
-                ? ImageFileCatalog.ListImagesInFolder(folder.FullPath)
-                : ImageFileCatalog.ListImagesRecursiveUnderSubtree(folder.FullPath, goodsRootFull);
+        var active = folders.Where(f => !f.IsIgnored).ToList();
+        if (active.Count == 0)
+            return;
 
-            foreach (var p in folderImages)
+        var loadEntireGoods = BrowseFilterKind == EditorBrowseFilterKind.All
+                              && !string.IsNullOrEmpty(goodsRootFull)
+                              && active.Any(f => f.IsGoodsRoot);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (loadEntireGoods)
+        {
+            _filesScopeIsEntireGoods = true;
+            foreach (var p in ImageFileCatalog.ListImagesRecursiveUnderSubtree(goodsRootFull, goodsRootFull))
             {
                 if (!seen.Add(p))
                     continue;
-                _filesBacking.Add(CreateFileThumbItem(p));
+                _filesBacking.Add(CreateFileThumbItem(p, goodsRootFull));
+            }
+        }
+        else
+        {
+            foreach (var folder in active)
+            {
+                IEnumerable<string> folderImages = string.IsNullOrEmpty(goodsRootFull)
+                    ? ImageFileCatalog.ListImagesInFolder(folder.FullPath)
+                    : ImageFileCatalog.ListImagesRecursiveUnderSubtree(folder.FullPath, goodsRootFull);
+
+                foreach (var p in folderImages)
+                {
+                    if (!seen.Add(p))
+                        continue;
+                    _filesBacking.Add(CreateFileThumbItem(p, goodsRootFull));
+                }
             }
         }
 
         RefreshFilesView();
         var paths = _filesBacking.Select(i => i.FilePath).ToList();
-        _ = RunFolderAutoAlignPrefetchAsync(prefetchGen, paths);
         await LoadCompositeThumbnailsAsync().ConfigureAwait(true);
+        _ = RunFolderAutoAlignPrefetchAsync(prefetchGen, paths);
     }
 
     /// <summary>
@@ -686,7 +793,7 @@ public partial class VisualShotEditorViewModel : ObservableObject
             {
                 await Parallel.ForEachAsync(
                     paths,
-                    new ParallelOptions { MaxDegreeOfParallelism = 2 },
+                    new ParallelOptions { MaxDegreeOfParallelism = 1 },
                     async (path, ct) =>
                     {
                         if (generation != Volatile.Read(ref _folderPrefetchGeneration))
@@ -785,8 +892,9 @@ public partial class VisualShotEditorViewModel : ObservableObject
 
                 if (written > 0)
                 {
-                    InvalidateAllThumbCache();
-                    _ = LoadCompositeThumbnailsAsync();
+                    foreach (var (path, _) in merged)
+                        InvalidateThumbCache(path);
+                    _ = RefreshThumbnailsForPathsAsync(merged.Select(m => m.Path).ToList());
                     _main.RequestMappingStatusRefresh();
                     FlashStatus(
                         $"Авто-подгонка по эталону (фон): записано правок для {written} файл(ов). Кадрирование может идти без ожидания расчёта.",
@@ -800,10 +908,37 @@ public partial class VisualShotEditorViewModel : ObservableObject
         }
     }
 
-    private FileThumbItemViewModel CreateFileThumbItem(string path) => new(path, this);
+    private FileThumbItemViewModel CreateFileThumbItem(string path, string goodsRootFull)
+    {
+        var item = new FileThumbItemViewModel(path, this);
+        item.FolderGroupHeader = BuildFolderGroupHeader(path, goodsRootFull);
+        return item;
+    }
+
+    private static string BuildFolderGroupHeader(string filePath, string goodsRootFull)
+    {
+        if (string.IsNullOrEmpty(goodsRootFull))
+            return Path.GetDirectoryName(filePath) ?? "(файлы)";
+
+        var dir = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        if (string.IsNullOrEmpty(dir))
+            return "(файлы)";
+
+        var rel = Path.GetRelativePath(goodsRootFull, dir);
+        if (string.IsNullOrEmpty(rel) || rel == ".")
+            return "(корень)";
+
+        return rel.Replace(Path.AltDirectorySeparatorChar, '/');
+    }
 
     private async Task LoadCompositeThumbnailsAsync()
     {
+        _thumbLoadCts?.Cancel();
+        _thumbLoadCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _thumbLoadCts = cts;
+        var token = cts.Token;
+
         var items = _filesBacking.ToList();
         foreach (var item in items)
         {
@@ -811,34 +946,87 @@ public partial class VisualShotEditorViewModel : ObservableObject
             item.Thumbnail = null;
         }
 
-        await Parallel.ForEachAsync(items, new ParallelOptions { MaxDegreeOfParallelism = 2 }, async (item, ct) =>
+        try
         {
-            BitmapSource? bmp = null;
-            try
-            {
-                bmp = await Task.Run(() => TryBuildCompositeThumbnailBitmap(item.FilePath), ct).ConfigureAwait(false);
-            }
-            catch
-            {
-                /* ignore */
-            }
+            await Parallel.ForEachAsync(
+                items,
+                new ParallelOptions { MaxDegreeOfParallelism = EditorBrowseThumbParallelism, CancellationToken = token },
+                async (item, ct) =>
+                {
+                    BitmapSource? bmp = null;
+                    try
+                    {
+                        bmp = await Task.Run(() => TryBuildCompositeThumbnailBitmap(item.FilePath), ct)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    catch
+                    {
+                        /* ignore */
+                    }
 
-            var assigned = bmp;
-            await _dispatcher.InvokeAsync(() =>
+                    if (ct.IsCancellationRequested)
+                        return;
+
+                    var assigned = bmp;
+                    await _dispatcher.InvokeAsync(() =>
+                    {
+                        if (token.IsCancellationRequested)
+                            return;
+                        item.IsThumbLoading = false;
+                        item.Thumbnail = assigned;
+                    }, DispatcherPriority.Background, ct);
+                }).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            /* новая папка / фильтр */
+        }
+    }
+
+    private async Task RefreshThumbnailsForPathsAsync(IReadOnlyList<string> paths)
+    {
+        if (paths.Count == 0)
+            return;
+
+        await Parallel.ForEachAsync(
+            paths,
+            new ParallelOptions { MaxDegreeOfParallelism = EditorBrowseThumbParallelism },
+            async (path, ct) =>
             {
-                item.IsThumbLoading = false;
-                item.Thumbnail = assigned;
-            }, DispatcherPriority.Background);
-        }).ConfigureAwait(true);
+                var item = _filesBacking.FirstOrDefault(i =>
+                    i.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase));
+                if (item is null)
+                    return;
+
+                item.IsThumbLoading = true;
+                BitmapSource? bmp = null;
+                try
+                {
+                    bmp = await Task.Run(() => TryBuildCompositeThumbnailBitmap(path), ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    /* ignore */
+                }
+
+                var assigned = bmp;
+                await _dispatcher.InvokeAsync(() =>
+                {
+                    item.IsThumbLoading = false;
+                    item.Thumbnail = assigned;
+                }, DispatcherPriority.Background, ct);
+            }).ConfigureAwait(true);
     }
 
     private BitmapSource? TryBuildCompositeThumbnailBitmap(string path)
     {
         var stem = ZonaOperationGuideParser.NormalizeShotStem(null, path) ?? "01";
-        var edgeConfigured = (int)Math.Clamp(Math.Round(_main.AnalysisMaxEdge), 256, 8192);
-        var edge = Math.Min(edgeConfigured, EditorBrowserThumbSourceMaxEdge);
         var manual = ManualShotAdjustStore.Resolve(_main.SelectedProduct.DisplayName, path, stem);
-        var sig = BuildThumbSignature(stem, edge, manual);
+        var sig = BuildThumbSignature(stem, manual);
 
         lock (_thumbCacheGate)
         {
@@ -846,7 +1034,7 @@ public partial class VisualShotEditorViewModel : ObservableObject
                 return hit.Bmp;
         }
 
-        var bmp = BuildCompositeThumbnailUncached(path, stem, edge, manual);
+        var bmp = BuildCompositeThumbnailUncached(path, stem, manual);
         if (bmp is not null)
         {
             lock (_thumbCacheGate)
@@ -856,46 +1044,40 @@ public partial class VisualShotEditorViewModel : ObservableObject
         return bmp;
     }
 
-    private string BuildThumbSignature(string stem, int edge, ManualShotAdjust manual)
+    private string BuildThumbSignature(string stem, ManualShotAdjust manual)
     {
         static string AdjSig(ManualShotAdjust m) =>
-            $"{m.OffsetX:R}|{m.OffsetY:R}|{m.ZoomPercent:R}|{m.RotationDeg:R}|{(int)m.GridOverlay}";
+            $"{m.OffsetX:R}|{m.OffsetY:R}|{m.ZoomPercent:R}|{m.RotationDeg:R}";
 
         var rf = _main.ReferenceFolder?.Trim() ?? "";
-        var zf = _main.ZonaFolder?.Trim() ?? "";
-        return $"{stem}|{edge}|{_main.SelectedProduct.DisplayName}|{_main.ApplyColorCorrection}|{AdjSig(manual)}|{rf}|{zf}";
+        return
+            $"{stem}|browse|{CropPreviewBitmapFactory.EditorBrowseThumbLoadEdge}|{_main.SelectedProduct.DisplayName}|{AdjSig(manual)}|grid|{rf}";
     }
 
-    private BitmapSource? BuildCompositeThumbnailUncached(string path, string stem, int edge, ManualShotAdjust manual)
+    private BitmapSource? BuildCompositeThumbnailUncached(string path, string stem, ManualShotAdjust manual)
     {
-        string? refPath = null;
-        var refFolder = _main.ReferenceFolder?.Trim();
-        if (!string.IsNullOrEmpty(refFolder))
-        {
-            refPath = Directory.EnumerateFiles(refFolder)
-                .FirstOrDefault(f =>
-                    ImageFileCatalog.IsImageFile(f)
-                    && string.Equals(Path.GetFileNameWithoutExtension(f), stem, StringComparison.OrdinalIgnoreCase));
-        }
+        var refPath = ResolveReferencePathForStem(stem);
+        if (refPath is null)
+            return CropPreviewBitmapFactory.LoadThumbnail(path, CropPreviewBitmapFactory.EditorBrowseThumbDisplayEdge);
 
-        var color = MainViewModel.GetEffectiveColorFor(_main.SelectedProduct);
-        var zonaDir = Directory.Exists(_main.ZonaFolder) ? _main.ZonaFolder : null;
-
-        if (refPath is null || !File.Exists(refPath))
-            return CropPreviewBitmapFactory.LoadThumbnail(path, 120);
-
-        return CropPreviewBitmapFactory.LoadCroppedPreview(
+        return CropPreviewBitmapFactory.LoadEditorBrowseThumbnail(
             path,
             refPath,
-            edge,
-            120,
-            color,
-            _main.ApplyColorCorrection,
-            rotateCounterClockwise90: false,
             stem,
-            zonaDir,
-            profileDisplayName: _main.SelectedProduct.DisplayName,
-            manualAdjustOverride: manual);
+            _main.SelectedProduct.DisplayName,
+            manual);
+    }
+
+    private string? ResolveReferencePathForStem(string stem)
+    {
+        var refFolder = _main.ReferenceFolder?.Trim();
+        if (string.IsNullOrEmpty(refFolder) || !Directory.Exists(refFolder))
+            return null;
+
+        return Directory.EnumerateFiles(refFolder)
+            .FirstOrDefault(f =>
+                ImageFileCatalog.IsImageFile(f)
+                && string.Equals(Path.GetFileNameWithoutExtension(f), stem, StringComparison.OrdinalIgnoreCase));
     }
 
     private void InvalidateThumbCache(string path)
@@ -1625,7 +1807,8 @@ public partial class VisualShotEditorViewModel : ObservableObject
                         manualPreview.OffsetY *= composeScale;
 
                         work = ManualShotAdjustApplier.ComposeFromFullToReference(fullRef, manualPreview, previewRefW, previewRefH);
-                        CropPreviewBitmapFactory.CompositeGridForEditorPreview(work, stem, manual.GridOverlay);
+                        CropPreviewBitmapFactory.CompositeGridForEditorPreview(
+                            work, stem, ZonaGridOverlayKind.LayoutRules);
                         if (!litePanCompose)
                             ColorCorrectionService.ApplyIfEnabled(work, color, applyColor);
                         a = CropPreviewBitmapFactory.ToBitmapSourceScaled(work, resultDisplayEdge);
@@ -1689,12 +1872,32 @@ public partial class VisualShotEditorViewModel : ObservableObject
 /// <summary>Элемент списка сетки в редакторе (для привязки ComboBox).</summary>
 public readonly record struct VisualEditorGridOption(ZonaGridOverlayKind Kind, string Display);
 
-public partial class FolderListItemViewModel(string displayName, string fullPath, bool isIgnored = false) : ObservableObject
-{
-    public string DisplayName { get; } = displayName;
-    public string FullPath { get; } = fullPath;
+public readonly record struct EditorBrowseFilterOption(EditorBrowseFilterKind Kind, string Display);
 
-    [ObservableProperty] private bool _isIgnored = isIgnored;
+public partial class FolderTreeNodeViewModel : ObservableObject
+{
+    public FolderTreeNodeViewModel(
+        string displayName,
+        string fullPath,
+        bool isGoodsRoot,
+        bool isIgnored = false,
+        FolderTreeNodeViewModel? parent = null)
+    {
+        DisplayName = displayName;
+        FullPath = fullPath;
+        IsGoodsRoot = isGoodsRoot;
+        Parent = parent;
+        _isIgnored = isIgnored;
+    }
+
+    public string DisplayName { get; }
+    public string FullPath { get; }
+    public bool IsGoodsRoot { get; }
+    public FolderTreeNodeViewModel? Parent { get; }
+
+    public ObservableCollection<FolderTreeNodeViewModel> Children { get; } = new();
+
+    [ObservableProperty] private bool _isIgnored;
 
     public string ListLabel => IsIgnored ? "⊘ " + DisplayName : DisplayName;
 }
@@ -1744,6 +1947,9 @@ public partial class FileThumbItemViewModel : ObservableObject
 
     /// <summary>Стабильное свойство для группировки по имени файла.</summary>
     public string FileNameOnly => Path.GetFileName(FilePath);
+
+    /// <summary>Заголовок группы по подпапке относительно «Товар».</summary>
+    public string FolderGroupHeader { get; set; } = string.Empty;
 
     partial void OnIsIncludedChanged(bool value)
     {
